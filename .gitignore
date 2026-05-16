@@ -1,0 +1,23 @@
+node_modules/
+.env
+.env.local
+
+# Hardhat
+artifacts/
+cache/
+typechain/
+typechain-types/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Deployment artifacts (keep deployments/ if you want to track them)
+coverage/
+coverage.json
