@@ -133,12 +133,27 @@ The script sends 0.01 USDC, decodes the `PaymentSent` event, and prints updated 
 | Explorer | [testnet.arcscan.app](https://testnet.arcscan.app) |
 | Faucet | [faucet.circle.com](https://faucet.circle.com) |
 
+## Deployed on Arc Testnet
+
+Live on-chain proof that the contract works end-to-end.
+
+| Field | Value |
+|---|---|
+| **Contract address** | [`0x1702FE076796191c305839631fdC8a711072527d`](https://testnet.arcscan.app/address/0x1702FE076796191c305839631fdC8a711072527d) |
+| **Deployment TX** | [View on arcscan](https://testnet.arcscan.app/tx/0x1fbfaccf0b1726d41f1ecaabd032a4bf0004258782ff68fba3caef23962d1f70) |
+| **First demo payment TX** | [View on arcscan](https://testnet.arcscan.app/tx/0x98c65bf0705792440ed7869d1fc7df3e5350a8881f5213d8219a8287d8951510) |
+| **Network** | Arc Testnet (chainId `5042002`) |
+| **Deployed** | May 17, 2026 |
+
+The demo payment routed 0.01 USDC through the contract with the memo `"Hello from 0xB7e49d — Arc Testnet demo"`, emitted the `PaymentSent` event, and updated the on-chain `paymentCount` and `totalVolume` counters. Inspect the contract on arcscan to read its current stats live.
+
 ## What's next
 
 Things this repo deliberately does **not** include but would be natural extensions:
 
 - Per-payment fee skim to a treasury address (would make this a tipping/escrow primitive).
 - Batch payments (`sendPaymentBatch(address[] to, uint256[] amounts, string[] memos)`).
+- Per-agent spending limits and daily budgets — see follow-up project **AgentPay**.
 - A tiny React frontend using Arc App Kit to send payments from a connected wallet.
 - A subgraph or simple indexer over `PaymentSent` for analytics.
 

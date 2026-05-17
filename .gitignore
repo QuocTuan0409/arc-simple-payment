@@ -21,3 +21,12 @@ Thumbs.db
 # Deployment artifacts (keep deployments/ if you want to track them)
 coverage/
 coverage.json
+
+# Personal notes — DO NOT COMMIT
+PLAYBOOK.md
+FOUNDATION_GUIDE.md
+DEPLOYMENT_INFO.md
+*_GUIDE.md
+*_PRIVATE*.md
+*_INFO.md
+notes/
