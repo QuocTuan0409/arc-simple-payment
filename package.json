@@ -7,6 +7,8 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy:arc": "hardhat run scripts/deploy.js --network arcTestnet",
+    "deploy:agentpay": "hardhat run scripts/deployAgentPay.js --network arcTestnet",
+    "demo:agentpay": "hardhat run scripts/demoAgentPay.js --network arcTestnet",
     "send": "hardhat run scripts/sendPayment.js --network arcTestnet",
     "node": "hardhat node"
   },

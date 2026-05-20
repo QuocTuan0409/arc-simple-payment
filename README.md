@@ -147,15 +147,26 @@ Live on-chain proof that the contract works end-to-end.
 
 The demo payment routed 0.01 USDC through the contract with the memo `"Hello from 0xB7e49d — Arc Testnet demo"`, emitted the `PaymentSent` event, and updated the on-chain `paymentCount` and `totalVolume` counters. Inspect the contract on arcscan to read its current stats live.
 
+## Follow-up project: AgentPay
+
+This repo also includes [`AgentPay`](./contracts/AgentPay.sol) — a second contract that extends the same primitives with per-agent spending limits, service allowlists, and pause/revoke controls.
+
+It exists to answer the next obvious question: *if an AI agent (or any automation) holds the key, what stops a bug or a compromised key from draining the wallet?*
+
+`AgentPay` moves those controls **on-chain**, where they can't be bypassed by application bugs.
+
+- Read the full design and demo: [`docs/AGENTPAY.md`](./docs/AGENTPAY.md)
+- Contract on Arc Testnet: [`0x1C0cf5a6d6b1EA6EDdF878Aef3e35c2b930f4D31`](https://testnet.arcscan.app/address/0x1C0cf5a6d6b1EA6EDdF878Aef3e35c2b930f4D31)
+
 ## What's next
 
 Things this repo deliberately does **not** include but would be natural extensions:
 
 - Per-payment fee skim to a treasury address (would make this a tipping/escrow primitive).
 - Batch payments (`sendPaymentBatch(address[] to, uint256[] amounts, string[] memos)`).
-- Per-agent spending limits and daily budgets — see follow-up project **AgentPay**.
 - A tiny React frontend using Arc App Kit to send payments from a connected wallet.
 - A subgraph or simple indexer over `PaymentSent` for analytics.
+- An AI agent backend that drives `AgentPay` end-to-end (planned).
 
 PRs and feedback welcome.
 
