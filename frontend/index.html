@@ -1,0 +1,825 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AgentPay — On-chain budget controls on Arc</title>
+    <meta
+      name="description"
+      content="On-chain spending limits and allowlists for autonomous AI agents on Arc Testnet."
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.0/ethers.umd.min.js"></script>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+      .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+      .truncate-addr {
+        display: inline-block;
+        max-width: 12ch;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        vertical-align: bottom;
+      }
+    </style>
+  </head>
+  <body class="bg-slate-950 text-slate-100 min-h-screen">
+    <!-- ───── Header ───── -->
+    <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur">
+      <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div>
+          <h1 class="text-xl font-bold">
+            <span class="text-blue-400">AgentPay</span>
+            <span class="text-slate-400 text-sm font-normal ml-2">on Arc Testnet</span>
+          </h1>
+          <p class="text-xs text-slate-500 mt-0.5">
+            On-chain budget controls for autonomous agents
+          </p>
+        </div>
+        <button
+          id="connectBtn"
+          class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition text-sm"
+        >
+          Connect Wallet
+        </button>
+      </div>
+    </header>
+
+    <!-- ───── Network banner ───── -->
+    <div
+      id="networkBanner"
+      class="hidden bg-amber-900/40 border-b border-amber-700/40 text-amber-200 text-sm"
+    >
+      <div class="max-w-5xl mx-auto px-6 py-2 flex items-center justify-between">
+        <span id="networkBannerMsg"></span>
+        <button
+          id="switchNetworkBtn"
+          class="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-medium"
+        >
+          Switch to Arc Testnet
+        </button>
+      </div>
+    </div>
+
+    <!-- ───── Not connected state ───── -->
+    <main id="disconnectedView" class="max-w-5xl mx-auto px-6 py-16 text-center">
+      <div class="text-6xl mb-4">🤖</div>
+      <h2 class="text-2xl font-bold mb-3">Welcome to AgentPay</h2>
+      <p class="text-slate-400 max-w-xl mx-auto mb-8">
+        Set spending limits and allowed services for your AI agents on-chain. Connect a wallet on
+        Arc Testnet to view your agents or create a new one.
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto text-left">
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <div class="text-2xl mb-2">💰</div>
+          <h3 class="font-semibold mb-1">Daily + per-tx limits</h3>
+          <p class="text-sm text-slate-400">
+            Cap how much an agent can spend per UTC day and per single call.
+          </p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <div class="text-2xl mb-2">🛂</div>
+          <h3 class="font-semibold mb-1">Service allowlist</h3>
+          <p class="text-sm text-slate-400">
+            Agents can only pay addresses you've explicitly whitelisted.
+          </p>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
+          <div class="text-2xl mb-2">⏸️</div>
+          <h3 class="font-semibold mb-1">Pause anytime</h3>
+          <p class="text-sm text-slate-400">
+            Compromised agent? Pause or revoke from this dashboard.
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <!-- ───── Connected state ───── -->
+    <main id="connectedView" class="hidden max-w-5xl mx-auto px-6 py-8">
+      <!-- Wallet info -->
+      <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Wallet</p>
+            <p class="mono text-sm mt-1" id="walletAddr">—</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Network</p>
+            <p class="text-sm mt-1" id="walletNetwork">—</p>
+          </div>
+          <div>
+            <p class="text-xs text-slate-500 uppercase tracking-wide">Balance</p>
+            <p class="text-sm mt-1" id="walletBalance">—</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- Agents list -->
+      <section class="mb-6">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-semibold">
+            My Agents
+            <span class="text-slate-500 text-sm font-normal ml-1" id="agentsCount"></span>
+          </h2>
+          <button
+            id="createAgentBtn"
+            class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-medium rounded-lg transition"
+          >
+            + Create Agent
+          </button>
+        </div>
+        <div id="agentsList" class="space-y-3"></div>
+        <div id="agentsEmpty" class="hidden bg-slate-900 border border-dashed border-slate-700 rounded-xl p-8 text-center">
+          <p class="text-slate-400">
+            No agents yet. Create one to start enforcing on-chain spending limits.
+          </p>
+        </div>
+      </section>
+
+      <!-- Activity log -->
+      <section>
+        <h2 class="text-lg font-semibold mb-3">
+          Recent Activity
+          <span class="text-slate-500 text-sm font-normal ml-1" id="activityCount"></span>
+        </h2>
+        <div id="activityList" class="space-y-2"></div>
+        <div id="activityEmpty" class="hidden bg-slate-900 border border-dashed border-slate-700 rounded-xl p-6 text-center">
+          <p class="text-slate-500 text-sm">No payment events yet for your agents.</p>
+        </div>
+      </section>
+
+      <!-- Footer info -->
+      <footer class="mt-10 pt-6 border-t border-slate-800 text-xs text-slate-500 text-center">
+        <p>
+          Contract:
+          <a
+            id="contractLink"
+            class="text-blue-400 hover:underline mono"
+            target="_blank"
+            rel="noreferrer"
+          ></a>
+        </p>
+        <p class="mt-1">
+          Source:
+          <a
+            href="https://github.com/QuocTuan0409/arc-simple-payment"
+            class="text-blue-400 hover:underline"
+            target="_blank"
+            rel="noreferrer"
+            >github.com/QuocTuan0409/arc-simple-payment</a
+          >
+        </p>
+      </footer>
+    </main>
+
+    <!-- ───── Wallet Picker Modal (EIP-6963) ───── -->
+    <div
+      id="walletPickerModal"
+      class="hidden fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50 px-4"
+    >
+      <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold">Connect a wallet</h3>
+          <button id="closeWalletPickerBtn" class="text-slate-400 hover:text-slate-200 text-xl">×</button>
+        </div>
+        <p class="text-xs text-slate-500 mb-3">Choose which wallet to connect from this browser.</p>
+        <div id="walletPickerList" class="space-y-2"></div>
+        <div
+          id="walletPickerEmpty"
+          class="hidden text-sm text-slate-400 bg-slate-800 border border-slate-700 rounded-lg p-3"
+        >
+          No wallet detected. Install
+          <a href="https://metamask.io" target="_blank" class="text-blue-400 hover:underline">MetaMask</a>,
+          <a href="https://rabby.io" target="_blank" class="text-blue-400 hover:underline">Rabby</a>,
+          <a href="https://www.okx.com/web3" target="_blank" class="text-blue-400 hover:underline">OKX Wallet</a>,
+          or another browser wallet.
+        </div>
+      </div>
+    </div>
+
+    <!-- ───── Create Agent Modal ───── -->
+    <div
+      id="createModal"
+      class="hidden fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50 px-4"
+    >
+      <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold">Create Agent</h3>
+          <button id="closeCreateBtn" class="text-slate-400 hover:text-slate-200 text-xl">×</button>
+        </div>
+        <form id="createAgentForm" class="space-y-4">
+          <div>
+            <label class="block text-xs text-slate-400 uppercase tracking-wide mb-1">
+              Agent address
+            </label>
+            <input
+              type="text"
+              id="formAgentAddr"
+              required
+              placeholder="0x... (or click 'Use my wallet' below)"
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mono text-sm focus:outline-none focus:border-blue-500"
+            />
+            <button
+              type="button"
+              id="useMyWalletBtn"
+              class="mt-1 text-xs text-blue-400 hover:underline"
+            >
+              Use my wallet as agent (single-wallet demo)
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs text-slate-400 uppercase tracking-wide mb-1">
+                Daily limit (USDC)
+              </label>
+              <input
+                type="number"
+                id="formDailyLimit"
+                step="0.01"
+                min="0.01"
+                required
+                value="0.1"
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+            <div>
+              <label class="block text-xs text-slate-400 uppercase tracking-wide mb-1">
+                Per-tx limit (USDC)
+              </label>
+              <input
+                type="number"
+                id="formPerTxLimit"
+                step="0.01"
+                min="0.01"
+                required
+                value="0.02"
+                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+
+          <p class="text-xs text-slate-500">
+            Per-tx limit must be ≤ daily limit. Limits cap the agent's spend on-chain — they
+            cannot be bypassed by application bugs or a compromised key.
+          </p>
+
+          <div id="createError" class="hidden text-sm text-red-400 bg-red-950/40 border border-red-900 rounded p-2"></div>
+
+          <button
+            type="submit"
+            id="submitCreateBtn"
+            class="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Register Agent
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- ───── App logic ───── -->
+    <script>
+      // ─── Configuration ───────────────────────────────────────────────────
+      const ARC_TESTNET = {
+        chainId: 5042002,
+        chainIdHex: "0x4cf0d2", // 5042002 in hex
+        name: "Arc Testnet",
+        rpc: "https://rpc.testnet.arc.network",
+        explorer: "https://testnet.arcscan.app",
+        currency: "USDC",
+        decimals: 18,
+      };
+
+      const AGENTPAY_ADDRESS = "0x1C0cf5a6d6b1EA6EDdF878Aef3e35c2b930f4D31";
+
+      // Minimal ABI — only the functions/events the UI uses.
+      const AGENTPAY_ABI = [
+        "function registerAgent(address agent, uint256 dailyLimit, uint256 perTxLimit) external",
+        "function getAgent(address agent) view returns (tuple(address owner, uint256 dailyLimit, uint256 perTxLimit, uint256 dailySpent, uint256 lastResetDay, bool active, bool registered, uint256 totalSpent, uint256 paymentCount))",
+        "function getRemainingDailyBudget(address agent) view returns (uint256)",
+        "function getAgentsByOwner(address owner) view returns (address[])",
+        "function pauseAgent(address agent) external",
+        "function unpauseAgent(address agent) external",
+        "event AgentRegistered(address indexed agent, address indexed owner, uint256 dailyLimit, uint256 perTxLimit)",
+        "event PaymentExecuted(address indexed agent, address indexed to, uint256 amount, string memo, uint256 timestamp)",
+        "event AgentPaused(address indexed agent)",
+        "event AgentUnpaused(address indexed agent)",
+      ];
+
+      // ─── DOM helpers ─────────────────────────────────────────────────────
+      const $ = (id) => document.getElementById(id);
+      const show = (id) => $(id).classList.remove("hidden");
+      const hide = (id) => $(id).classList.add("hidden");
+
+      function shortAddr(addr) {
+        if (!addr) return "—";
+        return addr.slice(0, 6) + "…" + addr.slice(-4);
+      }
+
+      function fmtUsdc(wei) {
+        return Number(ethers.formatUnits(wei, 18)).toLocaleString(undefined, {
+          maximumFractionDigits: 4,
+        });
+      }
+
+      function timeAgo(ts) {
+        const diff = Math.floor(Date.now() / 1000) - Number(ts);
+        if (diff < 60) return `${diff}s ago`;
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return `${Math.floor(diff / 86400)}d ago`;
+      }
+
+      // ─── State ───────────────────────────────────────────────────────────
+      let provider, signer, contract, userAddr;
+      let activeWalletProvider = null; // the EIP-1193 provider currently in use
+
+      // ─── EIP-6963 wallet discovery ───────────────────────────────────────
+      const detectedWallets = []; // { info: {uuid, name, icon, rdns}, provider }[]
+
+      function listenForWallets() {
+        window.addEventListener("eip6963:announceProvider", (ev) => {
+          const detail = ev.detail;
+          if (!detail || !detail.info || !detail.provider) return;
+          if (detectedWallets.find((w) => w.info.uuid === detail.info.uuid)) return;
+          detectedWallets.push({ info: detail.info, provider: detail.provider });
+        });
+        window.dispatchEvent(new Event("eip6963:requestProvider"));
+      }
+
+      function walletsForPicker() {
+        // Prefer EIP-6963 announcements
+        if (detectedWallets.length > 0) return detectedWallets.slice();
+        // Fallback: legacy window.ethereum
+        if (window.ethereum) {
+          return [
+            {
+              info: {
+                uuid: "legacy-window-ethereum",
+                name: "Browser wallet",
+                icon: "",
+                rdns: "window.ethereum (legacy)",
+              },
+              provider: window.ethereum,
+            },
+          ];
+        }
+        return [];
+      }
+
+      // ─── Init link to explorer ───────────────────────────────────────────
+      $("contractLink").textContent = AGENTPAY_ADDRESS;
+      $("contractLink").href = `${ARC_TESTNET.explorer}/address/${AGENTPAY_ADDRESS}`;
+
+      // ─── Connect / disconnect ────────────────────────────────────────────
+
+      async function openWalletPicker() {
+        // Give late-announcing wallets a tiny window to show up.
+        await new Promise((r) => setTimeout(r, 80));
+        const wallets = walletsForPicker();
+        const listEl = $("walletPickerList");
+
+        if (wallets.length === 0) {
+          listEl.innerHTML = "";
+          show("walletPickerEmpty");
+          show("walletPickerModal");
+          return;
+        }
+        hide("walletPickerEmpty");
+
+        listEl.innerHTML = wallets
+          .map((w) => {
+            const iconHtml = w.info.icon
+              ? `<img src="${w.info.icon}" alt="${w.info.name}" class="w-8 h-8 rounded">`
+              : `<div class="w-8 h-8 bg-slate-700 rounded flex items-center justify-center text-xs text-slate-400">${w.info.name.charAt(0).toUpperCase()}</div>`;
+            return `
+              <button
+                data-uuid="${w.info.uuid}"
+                class="wallet-btn w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg p-3 flex items-center gap-3 text-left transition"
+              >
+                ${iconHtml}
+                <div class="flex-1 min-w-0">
+                  <div class="font-medium text-sm">${w.info.name}</div>
+                  <div class="text-xs text-slate-500 truncate">${w.info.rdns || ""}</div>
+                </div>
+              </button>
+            `;
+          })
+          .join("");
+
+        listEl.querySelectorAll(".wallet-btn").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const uuid = btn.getAttribute("data-uuid");
+            const wallet = wallets.find((w) => w.info.uuid === uuid);
+            if (wallet) {
+              hide("walletPickerModal");
+              await connectWith(wallet.provider, wallet.info.name);
+            }
+          });
+        });
+
+        show("walletPickerModal");
+      }
+
+      function closeWalletPicker() {
+        hide("walletPickerModal");
+      }
+
+      async function connectWith(p1193, walletName) {
+        try {
+          activeWalletProvider = p1193;
+          await p1193.request({ method: "eth_requestAccounts" });
+          provider = new ethers.BrowserProvider(p1193);
+          signer = await provider.getSigner();
+          userAddr = await signer.getAddress();
+          contract = new ethers.Contract(AGENTPAY_ADDRESS, AGENTPAY_ABI, signer);
+
+          // Listen for account / chain changes on this specific wallet
+          if (p1193.on) {
+            const reload = () => location.reload();
+            p1193.on("accountsChanged", reload);
+            p1193.on("chainChanged", reload);
+          }
+
+          await refreshUI();
+        } catch (e) {
+          console.error("connect failed", e);
+          alert(
+            `Connection to ${walletName || "wallet"} failed: ` +
+              (e?.shortMessage || e?.message || "unknown error")
+          );
+          activeWalletProvider = null;
+        }
+      }
+
+      function disconnect() {
+        provider = null;
+        signer = null;
+        userAddr = null;
+        contract = null;
+        activeWalletProvider = null;
+        $("connectBtn").textContent = "Connect Wallet";
+        hide("connectedView");
+        hide("networkBanner");
+        show("disconnectedView");
+        $("agentsList").innerHTML = "";
+        $("activityList").innerHTML = "";
+      }
+
+      // Clicking the header button: open picker if disconnected, ask to disconnect if connected
+      function handleHeaderBtnClick() {
+        if (userAddr) {
+          if (confirm("Disconnect wallet from this site? (You'll need to reconnect to view agents.)")) {
+            disconnect();
+          }
+        } else {
+          openWalletPicker();
+        }
+      }
+
+      async function refreshUI() {
+        if (!provider || !userAddr) return;
+        const network = await provider.getNetwork();
+        const isArc = Number(network.chainId) === ARC_TESTNET.chainId;
+
+        // Header / wallet info
+        $("connectBtn").textContent = shortAddr(userAddr);
+        hide("disconnectedView");
+        show("connectedView");
+
+        $("walletAddr").textContent = shortAddr(userAddr);
+        $("walletAddr").title = userAddr;
+        $("walletNetwork").innerHTML = isArc
+          ? `<span class="text-emerald-400">●</span> Arc Testnet`
+          : `<span class="text-red-400">●</span> ${network.name || "Unknown"} (chain ${network.chainId})`;
+
+        if (isArc) {
+          hide("networkBanner");
+          try {
+            const bal = await provider.getBalance(userAddr);
+            $("walletBalance").textContent = fmtUsdc(bal) + " USDC";
+          } catch (e) {
+            $("walletBalance").textContent = "—";
+          }
+          await loadAgents();
+          await loadActivity();
+        } else {
+          show("networkBanner");
+          $("networkBannerMsg").textContent =
+            "You're on the wrong network. AgentPay is on Arc Testnet (chainId 5042002).";
+          $("walletBalance").textContent = "—";
+          $("agentsList").innerHTML = "";
+          $("activityList").innerHTML = "";
+        }
+      }
+
+      async function switchNetwork() {
+        try {
+          await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: ARC_TESTNET.chainIdHex }],
+          });
+        } catch (e) {
+          // 4902 = network not added yet
+          if (e.code === 4902) {
+            try {
+              await window.ethereum.request({
+                method: "wallet_addEthereumChain",
+                params: [
+                  {
+                    chainId: ARC_TESTNET.chainIdHex,
+                    chainName: ARC_TESTNET.name,
+                    rpcUrls: [ARC_TESTNET.rpc],
+                    nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+                    blockExplorerUrls: [ARC_TESTNET.explorer],
+                  },
+                ],
+              });
+            } catch (addErr) {
+              alert("Failed to add Arc Testnet: " + addErr.message);
+            }
+          } else {
+            alert("Switch network failed: " + e.message);
+          }
+        }
+      }
+
+      // ─── Load agents owned by user ───────────────────────────────────────
+      async function loadAgents() {
+        try {
+          const agentAddrs = await contract.getAgentsByOwner(userAddr);
+          $("agentsCount").textContent = `(${agentAddrs.length})`;
+
+          if (agentAddrs.length === 0) {
+            show("agentsEmpty");
+            $("agentsList").innerHTML = "";
+            return;
+          }
+          hide("agentsEmpty");
+
+          // Fetch each agent's config
+          const agents = await Promise.all(
+            agentAddrs.map(async (a) => {
+              const info = await contract.getAgent(a);
+              const remaining = await contract.getRemainingDailyBudget(a);
+              return { addr: a, info, remaining };
+            })
+          );
+
+          $("agentsList").innerHTML = agents
+            .map((a) => renderAgent(a))
+            .join("");
+
+          // Attach handlers for pause/unpause buttons
+          agents.forEach(({ addr, info }) => {
+            const btn = document.getElementById(`pauseBtn-${addr}`);
+            if (btn) {
+              btn.addEventListener("click", () => togglePause(addr, info.active));
+            }
+          });
+        } catch (e) {
+          console.error("loadAgents failed", e);
+          $("agentsList").innerHTML = `<div class="text-red-400 text-sm">Failed to load agents: ${e.shortMessage || e.message}</div>`;
+        }
+      }
+
+      function renderAgent({ addr, info, remaining }) {
+        const dailySpent = Number(ethers.formatUnits(info.dailySpent, 18));
+        const dailyLimit = Number(ethers.formatUnits(info.dailyLimit, 18));
+        const pct = dailyLimit > 0 ? Math.min(100, Math.floor((dailySpent / dailyLimit) * 100)) : 0;
+        const isSelf = addr.toLowerCase() === userAddr.toLowerCase();
+        const statusColor = info.active ? "emerald" : "amber";
+        const statusText = info.active ? "Active" : "Paused";
+        const explorerUrl = `${ARC_TESTNET.explorer}/address/${addr}`;
+
+        return `
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+            <div class="flex items-start justify-between mb-3">
+              <div>
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="mono text-sm" title="${addr}">${shortAddr(addr)}</span>
+                  ${isSelf ? '<span class="text-xs bg-blue-900/50 text-blue-300 px-1.5 py-0.5 rounded">self</span>' : ""}
+                  <a href="${explorerUrl}" target="_blank" class="text-xs text-slate-500 hover:text-blue-400">↗</a>
+                </div>
+                <p class="text-xs text-slate-500 mt-1">
+                  ${info.paymentCount.toString()} payments · ${fmtUsdc(info.totalSpent)} USDC total
+                </p>
+              </div>
+              <span class="text-xs text-${statusColor}-400 bg-${statusColor}-900/30 px-2 py-1 rounded">
+                ● ${statusText}
+              </span>
+            </div>
+
+            <div class="mb-3">
+              <div class="flex items-center justify-between text-xs mb-1">
+                <span class="text-slate-400">Daily spend</span>
+                <span class="text-slate-300">
+                  ${fmtUsdc(info.dailySpent)} / ${fmtUsdc(info.dailyLimit)} USDC
+                </span>
+              </div>
+              <div class="h-1.5 bg-slate-800 rounded overflow-hidden">
+                <div
+                  class="h-full bg-blue-500 transition-all"
+                  style="width: ${pct}%"
+                ></div>
+              </div>
+              <p class="text-xs text-slate-500 mt-1">
+                Remaining today: ${fmtUsdc(remaining)} USDC · Per-tx max: ${fmtUsdc(info.perTxLimit)} USDC
+              </p>
+            </div>
+
+            <div class="flex gap-2">
+              <button
+                id="pauseBtn-${addr}"
+                class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sm rounded transition"
+              >
+                ${info.active ? "Pause" : "Unpause"}
+              </button>
+              <a
+                href="${explorerUrl}"
+                target="_blank"
+                class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sm rounded transition"
+              >
+                View on arcscan
+              </a>
+            </div>
+          </div>
+        `;
+      }
+
+      // ─── Pause / unpause ────────────────────────────────────────────────
+      async function togglePause(addr, isActive) {
+        try {
+          const tx = isActive
+            ? await contract.pauseAgent(addr)
+            : await contract.unpauseAgent(addr);
+          await tx.wait();
+          await loadAgents();
+          await loadActivity();
+        } catch (e) {
+          alert("Action failed: " + (e?.shortMessage || e.message));
+        }
+      }
+
+      // ─── Activity log (last ~PaymentExecuted events) ─────────────────────
+      // Arc Testnet RPC sometimes refuses very large block ranges. We chunk
+      // the query and walk backwards from the latest block. Stops as soon as
+      // we have enough events or we've reached the AgentPay deploy block.
+      const DEPLOY_BLOCK_HINT = 42600000; // a bit before the first AgentPay tx
+      const CHUNK_SIZE = 10000;
+      const MAX_CHUNKS = 200; // hard cap so we never spin forever
+      const TARGET_EVENT_COUNT = 20;
+
+      async function loadActivity() {
+        try {
+          const agentAddrs = await contract.getAgentsByOwner(userAddr);
+          if (agentAddrs.length === 0) {
+            $("activityList").innerHTML = "";
+            $("activityCount").textContent = "";
+            show("activityEmpty");
+            return;
+          }
+          hide("activityEmpty");
+
+          const filter = contract.filters.PaymentExecuted(agentAddrs);
+          const latestBlock = await provider.getBlockNumber();
+          const earliest = DEPLOY_BLOCK_HINT;
+
+          // Walk backwards from latest block, chunk by chunk, until we have
+          // enough events or hit the deploy block (or MAX_CHUNKS).
+          let collected = [];
+          let to = latestBlock;
+          let chunksProcessed = 0;
+          while (to >= earliest && collected.length < TARGET_EVENT_COUNT && chunksProcessed < MAX_CHUNKS) {
+            const from = Math.max(earliest, to - CHUNK_SIZE + 1);
+            try {
+              const chunk = await contract.queryFilter(filter, from, to);
+              if (chunk.length > 0) collected = chunk.concat(collected); // keep chronological order
+            } catch (chunkErr) {
+              // Skip a problematic range, keep walking back
+              console.warn(`Skipping blocks ${from}-${to}:`, chunkErr.shortMessage || chunkErr.message);
+            }
+            chunksProcessed += 1;
+            if (from <= earliest) break;
+            to = from - 1;
+          }
+
+          $("activityCount").textContent = `(${collected.length})`;
+
+          if (collected.length === 0) {
+            $("activityList").innerHTML = "";
+            show("activityEmpty");
+            return;
+          }
+
+          // Show newest first
+          const html = collected
+            .slice()
+            .reverse()
+            .slice(0, TARGET_EVENT_COUNT)
+            .map((ev) => {
+              const { agent, to: payTo, amount, memo, timestamp } = ev.args;
+              const txUrl = `${ARC_TESTNET.explorer}/tx/${ev.transactionHash}`;
+              return `
+                <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 text-sm flex items-start justify-between gap-3">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-slate-200">
+                      <span class="text-emerald-400">✓</span>
+                      Paid <span class="font-semibold">${fmtUsdc(amount)} USDC</span>
+                      to <span class="mono text-slate-300" title="${payTo}">${shortAddr(payTo)}</span>
+                    </p>
+                    <p class="text-xs text-slate-500 mt-0.5">
+                      Memo: "${(memo || "").replace(/[<>"]/g, "")}" · Agent ${shortAddr(agent)}
+                    </p>
+                  </div>
+                  <div class="text-right shrink-0">
+                    <p class="text-xs text-slate-500">${timeAgo(timestamp)}</p>
+                    <a
+                      href="${txUrl}"
+                      target="_blank"
+                      class="text-xs text-blue-400 hover:underline mono"
+                    >${ev.transactionHash.slice(0, 10)}…</a>
+                  </div>
+                </div>
+              `;
+            })
+            .join("");
+
+          $("activityList").innerHTML = html;
+        } catch (e) {
+          console.error("loadActivity failed", e);
+          $("activityList").innerHTML = `
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 text-sm text-slate-400">
+              Couldn't load on-chain activity right now. The Arc Testnet RPC may be rate-limiting historical
+              event queries — try refreshing in a few seconds, or
+              <a href="${ARC_TESTNET.explorer}/address/${AGENTPAY_ADDRESS}#tokentxns" target="_blank" class="text-blue-400 hover:underline">view the contract on arcscan</a>.
+            </div>`;
+        }
+      }
+
+      // ─── Create agent flow ───────────────────────────────────────────────
+      function openCreateModal() {
+        $("createError").classList.add("hidden");
+        $("formAgentAddr").value = "";
+        $("formDailyLimit").value = "0.1";
+        $("formPerTxLimit").value = "0.02";
+        show("createModal");
+      }
+      function closeCreateModal() {
+        hide("createModal");
+      }
+      function useMyWallet() {
+        $("formAgentAddr").value = userAddr;
+      }
+
+      async function handleCreateAgent(ev) {
+        ev.preventDefault();
+        $("createError").classList.add("hidden");
+
+        const agentAddr = $("formAgentAddr").value.trim();
+        const dailyStr = $("formDailyLimit").value.trim();
+        const perTxStr = $("formPerTxLimit").value.trim();
+
+        try {
+          if (!ethers.isAddress(agentAddr)) {
+            throw new Error("Agent address is not a valid Ethereum address.");
+          }
+          const dailyLimit = ethers.parseUnits(dailyStr, 18);
+          const perTxLimit = ethers.parseUnits(perTxStr, 18);
+          if (perTxLimit > dailyLimit) {
+            throw new Error("Per-tx limit must be ≤ daily limit.");
+          }
+
+          $("submitCreateBtn").disabled = true;
+          $("submitCreateBtn").textContent = "Submitting…";
+
+          const tx = await contract.registerAgent(agentAddr, dailyLimit, perTxLimit);
+          $("submitCreateBtn").textContent = "Waiting for confirmation…";
+          await tx.wait();
+
+          closeCreateModal();
+          await loadAgents();
+        } catch (e) {
+          $("createError").textContent =
+            e.shortMessage || e.reason || e.message || "Unknown error";
+          $("createError").classList.remove("hidden");
+        } finally {
+          $("submitCreateBtn").disabled = false;
+          $("submitCreateBtn").textContent = "Register Agent";
+        }
+      }
+
+      // ─── Event wiring ────────────────────────────────────────────────────
+      $("connectBtn").addEventListener("click", handleHeaderBtnClick);
+      $("switchNetworkBtn").addEventListener("click", switchNetwork);
+      $("createAgentBtn").addEventListener("click", openCreateModal);
+      $("closeCreateBtn").addEventListener("click", closeCreateModal);
+      $("useMyWalletBtn").addEventListener("click", useMyWallet);
+      $("createAgentForm").addEventListener("submit", handleCreateAgent);
+      $("closeWalletPickerBtn").addEventListener("click", closeWalletPicker);
+
+      // Start listening for EIP-6963 wallet announcements as early as possible
+      listenForWallets();
+    </script>
+  </body>
+</html>
