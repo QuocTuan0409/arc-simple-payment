@@ -543,6 +543,33 @@
     <!-- Footer (always visible)                                       -->
     <!-- ═══════════════════════════════════════════════════════════ -->
     <footer class="border-t border-slate-900 mt-12">
+      <!-- Testnet disclaimer banner (prominent) -->
+      <div class="bg-amber-950/30 border-y border-amber-900/40">
+        <div class="max-w-6xl mx-auto px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div class="shrink-0 text-2xl">⚠️</div>
+          <div class="flex-1 text-sm">
+            <p class="text-amber-200 font-semibold mb-0.5">
+              This is a testnet demo for the Arc project.
+            </p>
+            <p class="text-amber-100/70 text-xs leading-relaxed">
+              All transactions use <strong>testnet USDC</strong> on
+              <a href="https://docs.arc.io" target="_blank" rel="noreferrer" class="underline hover:text-amber-100">Arc Testnet</a>
+              — no real money is involved. The contract is unaudited; do not adapt this code
+              for production without a security review.
+            </p>
+          </div>
+          <a
+            href="https://faucet.circle.com"
+            target="_blank"
+            rel="noreferrer"
+            class="shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white text-sm font-medium rounded-lg transition"
+          >
+            Get testnet USDC ↗
+          </a>
+        </div>
+      </div>
+
+      <!-- Footer columns -->
       <div class="max-w-6xl mx-auto px-6 py-8 grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
         <div>
           <div class="font-semibold text-slate-200 mb-2">AgentPay</div>
@@ -572,7 +599,13 @@
             <li>
               Faucet:
               <a href="https://faucet.circle.com" target="_blank" class="text-blue-400 hover:underline">
-                faucet.circle.com
+                faucet.circle.com ↗
+              </a>
+            </li>
+            <li>
+              Explorer:
+              <a href="https://testnet.arcscan.app" target="_blank" class="text-blue-400 hover:underline">
+                testnet.arcscan.app ↗
               </a>
             </li>
           </ul>
@@ -602,6 +635,14 @@
               </a>
             </li>
           </ul>
+        </div>
+      </div>
+
+      <!-- Tiny bottom strip -->
+      <div class="border-t border-slate-900">
+        <div class="max-w-6xl mx-auto px-6 py-4 text-center text-xs text-slate-600">
+          AgentPay · Arc Testnet demo · Built for the Stablecoins Commerce Stack Challenge ·
+          Not financial advice
         </div>
       </div>
     </footer>
