@@ -155,8 +155,10 @@ It exists to answer the next obvious question: *if an AI agent (or any automatio
 
 `AgentPay` moves those controls **on-chain**, where they can't be bypassed by application bugs.
 
-- Read the full design and demo: [`docs/AGENTPAY.md`](./docs/AGENTPAY.md)
-- Contract on Arc Testnet: [`0x1C0cf5a6d6b1EA6EDdF878Aef3e35c2b930f4D31`](https://testnet.arcscan.app/address/0x1C0cf5a6d6b1EA6EDdF878Aef3e35c2b930f4D31)
+- 🌐 **Live demo:** [arc-simple-payment.vercel.app](https://arc-simple-payment.vercel.app)
+- 📖 Read the full design and demo: [`docs/AGENTPAY.md`](./docs/AGENTPAY.md)
+- 🔗 Contract on Arc Testnet: [`0x1C0cf5a6d6b1EA6EDdF878Aef3e35c2b930f4D31`](https://testnet.arcscan.app/address/0x1C0cf5a6d6b1EA6EDdF878Aef3e35c2b930f4D31)
+- 💻 Frontend source: [`frontend/`](./frontend/) — single-page vanilla HTML, no build step
 
 ## What's next
 
