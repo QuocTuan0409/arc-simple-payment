@@ -3,99 +3,489 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AgentPay — On-chain budget controls on Arc</title>
+    <title>AgentPay — On-chain budget controls for autonomous AI agents on Arc</title>
     <meta
       name="description"
-      content="On-chain spending limits and allowlists for autonomous AI agents on Arc Testnet."
+      content="AgentPay sets daily spending limits, per-tx caps, and service allowlists for autonomous AI agents on Arc Testnet — so a compromised key or runaway bug can't drain your wallet."
     />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.0/ethers.umd.min.js"></script>
     <style>
       body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
       .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-      .truncate-addr {
-        display: inline-block;
-        max-width: 12ch;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        vertical-align: bottom;
+      section[id] { scroll-margin-top: 80px; }
+      html { scroll-behavior: smooth; }
+      .gradient-text {
+        background: linear-gradient(90deg, #60a5fa 0%, #34d399 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
       }
+      .gradient-border {
+        position: relative;
+        background: #0f172a;
+      }
+      .gradient-border::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        padding: 1px;
+        background: linear-gradient(135deg, rgba(96,165,250,0.4), rgba(52,211,153,0.4));
+        border-radius: inherit;
+        -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+        -webkit-mask-composite: xor;
+        mask-composite: exclude;
+        pointer-events: none;
+      }
+      .fade-in { animation: fadeIn 0.5s ease-out; }
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .pulse-dot::after {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-left: 4px;
+        background: #34d399;
+        border-radius: 50%;
+        animation: pulse 1.6s infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+    </style>
+    <script>
+      // Run BEFORE body renders: if we were connected, hide landing immediately
+      // so the user doesn't see a flash of the "not connected" hero.
+      try {
+        if (JSON.parse(localStorage.getItem("agentpay_connected"))) {
+          document.documentElement.dataset.reconnecting = "1";
+        }
+      } catch (_) {}
+    </script>
+    <style>
+      /* While reconnecting, hide landing + show loading skeleton */
+      html[data-reconnecting="1"] #landingView { display: none !important; }
+      html[data-reconnecting="1"] #reconnectingView { display: block !important; }
     </style>
   </head>
   <body class="bg-slate-950 text-slate-100 min-h-screen">
-    <!-- ───── Header ───── -->
-    <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur">
-      <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
-        <div>
-          <h1 class="text-xl font-bold">
-            <span class="text-blue-400">AgentPay</span>
-            <span class="text-slate-400 text-sm font-normal ml-2">on Arc Testnet</span>
-          </h1>
-          <p class="text-xs text-slate-500 mt-0.5">
-            On-chain budget controls for autonomous agents
-          </p>
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Header (sticky)                                              -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <header class="sticky top-0 z-40 border-b border-slate-800 bg-slate-950/80 backdrop-blur">
+      <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between">
+        <a href="#top" class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center font-bold text-white text-sm">
+            ⚡
+          </div>
+          <div>
+            <div class="font-bold text-base"><span class="gradient-text">AgentPay</span></div>
+            <div class="text-[10px] text-slate-500 -mt-0.5">on Arc Testnet</div>
+          </div>
+        </a>
+        <nav class="hidden md:flex items-center gap-6 text-sm text-slate-400">
+          <a href="#problem" data-section="problem" class="nav-link hover:text-slate-100 transition">Problem</a>
+          <a href="#how" data-section="how" class="nav-link hover:text-slate-100 transition">How it works</a>
+          <a href="#use-cases" data-section="use-cases" class="nav-link hover:text-slate-100 transition">Use cases</a>
+          <a href="#tech" data-section="tech" class="nav-link hover:text-slate-100 transition">Tech</a>
+          <a
+            href="https://github.com/QuocTuan0409/arc-simple-payment"
+            target="_blank"
+            rel="noreferrer"
+            class="hover:text-slate-100 transition"
+          >GitHub ↗</a>
+        </nav>
+        <div class="flex items-center gap-2">
+          <button
+            id="dashboardBtn"
+            class="hidden px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg transition text-sm"
+          >
+            ← Dashboard
+          </button>
+          <button
+            id="connectBtn"
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition text-sm"
+          >
+            Connect Wallet
+          </button>
         </div>
-        <button
-          id="connectBtn"
-          class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition text-sm"
-        >
-          Connect Wallet
-        </button>
       </div>
     </header>
 
-    <!-- ───── Network banner ───── -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Network banner                                                -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
     <div
       id="networkBanner"
       class="hidden bg-amber-900/40 border-b border-amber-700/40 text-amber-200 text-sm"
     >
-      <div class="max-w-5xl mx-auto px-6 py-2 flex items-center justify-between">
+      <div class="max-w-6xl mx-auto px-6 py-2 flex items-center justify-between gap-3">
         <span id="networkBannerMsg"></span>
         <button
           id="switchNetworkBtn"
-          class="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-medium"
+          class="px-3 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded text-xs font-medium shrink-0"
         >
           Switch to Arc Testnet
         </button>
       </div>
     </div>
 
-    <!-- ───── Not connected state ───── -->
-    <main id="disconnectedView" class="max-w-5xl mx-auto px-6 py-16 text-center">
-      <div class="text-6xl mb-4">🤖</div>
-      <h2 class="text-2xl font-bold mb-3">Welcome to AgentPay</h2>
-      <p class="text-slate-400 max-w-xl mx-auto mb-8">
-        Set spending limits and allowed services for your AI agents on-chain. Connect a wallet on
-        Arc Testnet to view your agents or create a new one.
-      </p>
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto text-left">
-        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
-          <div class="text-2xl mb-2">💰</div>
-          <h3 class="font-semibold mb-1">Daily + per-tx limits</h3>
-          <p class="text-sm text-slate-400">
-            Cap how much an agent can spend per UTC day and per single call.
-          </p>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
-          <div class="text-2xl mb-2">🛂</div>
-          <h3 class="font-semibold mb-1">Service allowlist</h3>
-          <p class="text-sm text-slate-400">
-            Agents can only pay addresses you've explicitly whitelisted.
-          </p>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 rounded-lg p-4">
-          <div class="text-2xl mb-2">⏸️</div>
-          <h3 class="font-semibold mb-1">Pause anytime</h3>
-          <p class="text-sm text-slate-400">
-            Compromised agent? Pause or revoke from this dashboard.
-          </p>
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- RECONNECTING VIEW (shown briefly during silent reconnect)    -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <main id="reconnectingView" style="display: none" class="max-w-6xl mx-auto px-6 py-8">
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6 animate-pulse">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <div class="h-3 w-16 bg-slate-800 rounded mb-2"></div>
+            <div class="h-5 w-32 bg-slate-800 rounded"></div>
+          </div>
+          <div>
+            <div class="h-3 w-16 bg-slate-800 rounded mb-2"></div>
+            <div class="h-5 w-28 bg-slate-800 rounded"></div>
+          </div>
+          <div>
+            <div class="h-3 w-16 bg-slate-800 rounded mb-2"></div>
+            <div class="h-5 w-24 bg-slate-800 rounded"></div>
+          </div>
         </div>
       </div>
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 animate-pulse">
+        <div class="h-4 w-24 bg-slate-800 rounded mb-4"></div>
+        <div class="space-y-3">
+          <div class="h-20 bg-slate-800/60 rounded-lg"></div>
+          <div class="h-20 bg-slate-800/60 rounded-lg"></div>
+        </div>
+      </div>
+      <p class="text-center text-xs text-slate-500 mt-4">
+        Reconnecting to wallet…
+      </p>
     </main>
 
-    <!-- ───── Connected state ───── -->
-    <main id="connectedView" class="hidden max-w-5xl mx-auto px-6 py-8">
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- LANDING VIEW (visible when wallet not connected)              -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <main id="landingView" class="fade-in" id="top">
+      <!-- ── Hero ───────────────────────────────────────────────── -->
+      <section class="max-w-6xl mx-auto px-6 pt-16 pb-12 text-center">
+        <div class="inline-flex items-center gap-2 px-3 py-1 bg-slate-900 border border-slate-800 rounded-full text-xs text-slate-400 mb-6">
+          <span class="pulse-dot">Live on Arc Testnet</span>
+        </div>
+        <h1 class="text-4xl md:text-6xl font-bold tracking-tight mb-5">
+          On-chain spending controls<br />
+          for <span class="gradient-text">autonomous AI agents</span>
+        </h1>
+        <p class="text-slate-400 text-lg md:text-xl max-w-2xl mx-auto mb-8">
+          Set daily budgets, whitelist services, and pause anytime. Built on
+          <span class="text-blue-400">Arc</span> — Circle's stablecoin-native L1
+          where USDC is the native gas token.
+        </p>
+        <div class="flex flex-col sm:flex-row gap-3 justify-center items-center mb-8">
+          <button
+            id="heroConnectBtn"
+            class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition w-full sm:w-auto"
+          >
+            Connect Wallet to Try
+          </button>
+          <a
+            id="contractLinkHero"
+            href="#"
+            target="_blank"
+            rel="noreferrer"
+            class="px-6 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 font-medium rounded-lg transition w-full sm:w-auto inline-flex items-center justify-center gap-2"
+          >
+            View Contract on Arcscan ↗
+          </a>
+        </div>
+
+        <!-- Live on-chain stats banner -->
+        <div class="max-w-3xl mx-auto bg-slate-900 border border-slate-800 rounded-xl p-5">
+          <div class="text-xs uppercase tracking-wider text-slate-500 mb-3">
+            Live from Arc Testnet
+          </div>
+          <div class="grid grid-cols-3 gap-4 text-center">
+            <div>
+              <div id="statTotalPayments" class="text-2xl font-bold text-slate-100">—</div>
+              <div class="text-xs text-slate-500 mt-0.5">Payments executed</div>
+            </div>
+            <div>
+              <div id="statTotalVolume" class="text-2xl font-bold text-slate-100">—</div>
+              <div class="text-xs text-slate-500 mt-0.5">USDC routed</div>
+            </div>
+            <div>
+              <div id="statAgentActive" class="text-2xl font-bold text-slate-100">—</div>
+              <div class="text-xs text-slate-500 mt-0.5">Agent status</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Problem ─────────────────────────────────────────────── -->
+      <section id="problem" class="max-w-6xl mx-auto px-6 py-16 border-t border-slate-900">
+        <div class="text-center mb-12">
+          <div class="text-xs uppercase tracking-wider text-blue-400 mb-2">The problem</div>
+          <h2 class="text-3xl md:text-4xl font-bold mb-3">
+            Autonomous agents hold keys. Keys can leak.
+          </h2>
+          <p class="text-slate-400 max-w-2xl mx-auto">
+            Today's AI agents transact on behalf of users — but without on-chain controls,
+            one compromised key or runaway bug drains the entire wallet.
+          </p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="text-2xl mb-2">🔓</div>
+            <h3 class="font-semibold mb-1">Compromised keys</h3>
+            <p class="text-sm text-slate-400">
+              A stolen agent key today means an unbounded loss — limited only by the wallet
+              balance. Cold storage isn't an option when the agent needs to sign 24/7.
+            </p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="text-2xl mb-2">🐛</div>
+            <h3 class="font-semibold mb-1">Runaway loops</h3>
+            <p class="text-sm text-slate-400">
+              A bug, a malformed prompt, or a misbehaving plan can cause an agent to loop —
+              burning $5,000 in API calls before anyone notices.
+            </p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="text-2xl mb-2">🎯</div>
+            <h3 class="font-semibold mb-1">No granular spend control</h3>
+            <p class="text-sm text-slate-400">
+              Application-level rate limits get bypassed when the code itself has the keys.
+              The only enforceable limit is one the chain itself enforces.
+            </p>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="text-2xl mb-2">📋</div>
+            <h3 class="font-semibold mb-1">Auditing is painful</h3>
+            <p class="text-sm text-slate-400">
+              Finance teams need to know what each AI feature is costing, who got paid, and
+              when — without trawling through application logs that can be tampered with.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── How it works ─────────────────────────────────────────── -->
+      <section id="how" class="max-w-6xl mx-auto px-6 py-16 border-t border-slate-900">
+        <div class="text-center mb-12">
+          <div class="text-xs uppercase tracking-wider text-blue-400 mb-2">How it works</div>
+          <h2 class="text-3xl md:text-4xl font-bold mb-3">
+            Three on-chain rules, no off-chain trust required.
+          </h2>
+          <p class="text-slate-400 max-w-2xl mx-auto">
+            Every <code class="text-blue-400">agentPay()</code> call has to pass three checks
+            before any USDC moves. The contract enforces them; the application can't bypass them.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="text-blue-400 text-sm font-mono mb-2">Step 1</div>
+            <h3 class="font-semibold mb-2">Register an agent</h3>
+            <p class="text-sm text-slate-400 mb-3">
+              The owner calls
+              <code class="text-emerald-400 text-xs">registerAgent(agent, daily, perTx)</code>
+              and sets two hard caps in USDC.
+            </p>
+            <div class="text-xs text-slate-500 mono bg-slate-950 border border-slate-800 rounded p-2">
+              dailyLimit  = 5 USDC<br>
+              perTxLimit  = 0.10 USDC<br>
+              owner       = msg.sender
+            </div>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="text-blue-400 text-sm font-mono mb-2">Step 2</div>
+            <h3 class="font-semibold mb-2">Whitelist allowed services</h3>
+            <p class="text-sm text-slate-400 mb-3">
+              The owner adds each receiver the agent is allowed to pay — APIs,
+              vendors, contractors, anything.
+            </p>
+            <div class="text-xs text-slate-500 mono bg-slate-950 border border-slate-800 rounded p-2">
+              addAllowedService(<br>
+              &nbsp;&nbsp;agent,<br>
+              &nbsp;&nbsp;openAiApiAddress<br>
+              );
+            </div>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-5">
+            <div class="text-blue-400 text-sm font-mono mb-2">Step 3</div>
+            <h3 class="font-semibold mb-2">Agent pays autonomously</h3>
+            <p class="text-sm text-slate-400 mb-3">
+              The agent calls
+              <code class="text-emerald-400 text-xs">agentPay(to, memo) payable</code>.
+              The contract checks allowlist + per-tx cap + daily cap, then forwards.
+            </p>
+            <div class="text-xs text-slate-500 mono bg-slate-950 border border-slate-800 rounded p-2">
+              ✓ allowed service<br>
+              ✓ ≤ perTxLimit<br>
+              ✓ ≤ remaining daily<br>
+              → forward USDC, emit event
+            </div>
+          </div>
+        </div>
+
+        <!-- Flow diagram (ASCII) -->
+        <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 overflow-x-auto">
+          <pre class="text-xs text-slate-400 mono whitespace-pre">
+   ┌──────────┐    setup       ┌──────────────────────┐
+   │  Owner   │ ─────────────▶ │   AgentPay.sol       │
+   │  (user)  │  register +    │  ────────────────    │
+   └──────────┘  allowlist     │  • daily caps        │
+                               │  • per-tx caps       │
+                               │  • allowlist         │
+                               │  • pause/revoke      │
+                               └──────────────────────┘
+                                          ▲
+                                          │ agentPay(to, memo)
+                                          │ (msg.value = USDC)
+                                          │
+                                  ┌───────────────┐
+                                  │   AI Agent    │
+                                  │ (autonomous)  │
+                                  └───────────────┘
+                                          │
+                       allowlisted &      │
+                       within budget?     ▼
+                                  ┌───────────────┐
+                                  │ Service / API │
+                                  │   recipient   │
+                                  └───────────────┘
+          </pre>
+        </div>
+      </section>
+
+      <!-- ── Use cases ────────────────────────────────────────────── -->
+      <section id="use-cases" class="max-w-6xl mx-auto px-6 py-16 border-t border-slate-900">
+        <div class="text-center mb-12">
+          <div class="text-xs uppercase tracking-wider text-blue-400 mb-2">Use cases</div>
+          <h2 class="text-3xl md:text-4xl font-bold mb-3">
+            The same primitive solves two big spend problems.
+          </h2>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 relative gradient-border">
+            <div class="text-3xl mb-3">🤖</div>
+            <h3 class="text-xl font-bold mb-2">AI inference cost control</h3>
+            <p class="text-slate-400 mb-4">
+              Give each AI feature in your product its own agent — a chatbot, a fraud
+              classifier, a content moderator — with their own daily budgets. A runaway
+              prompt or a leaked key can lose at most one day's worth of credits.
+            </p>
+            <ul class="text-sm text-slate-300 space-y-1.5">
+              <li>✓ Per-feature spend visibility for finance teams</li>
+              <li>✓ Compromised key bounded to <code class="text-emerald-400">dailyLimit</code></li>
+              <li>✓ On-chain audit trail of every API call</li>
+              <li>✓ Pause an agent instantly if it misbehaves</li>
+            </ul>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 relative gradient-border">
+            <div class="text-3xl mb-3">🌍</div>
+            <h3 class="text-xl font-bold mb-2">Cross-border contractor payouts</h3>
+            <p class="text-slate-400 mb-4">
+              An agency in Vietnam pays freelancers in Manila, Mumbai, and Lagos. Each
+              freelancer's wallet is whitelisted with a per-tx cap matching their tier.
+              Settlement is instant on Arc — versus T+1 with traditional rails.
+            </p>
+            <ul class="text-sm text-slate-300 space-y-1.5">
+              <li>✓ Sub-second finality vs. T+1 bank wires</li>
+              <li>✓ ~$0.001 of gas per transfer (vs. $25 wire fees)</li>
+              <li>✓ Per-freelancer caps prevent fraud + duplicate payments</li>
+              <li>✓ Programmable workflows (approval triggers, monthly limits)</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Why Arc ──────────────────────────────────────────────── -->
+      <section class="max-w-6xl mx-auto px-6 py-16 border-t border-slate-900">
+        <div class="text-center mb-10">
+          <div class="text-xs uppercase tracking-wider text-blue-400 mb-2">Why Arc</div>
+          <h2 class="text-3xl md:text-4xl font-bold mb-3">
+            USDC is the native gas. No ERC-20 approvals. No fee token.
+          </h2>
+          <p class="text-slate-400 max-w-2xl mx-auto">
+            Arc treats stablecoins as the base unit of the chain. That means
+            <code class="text-emerald-400">msg.value</code> in a payable function is already
+            denominated in USDC — and the entire contract is ~200 lines of Solidity, not 600.
+          </p>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+            <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Settlement</div>
+            <div class="text-2xl font-bold text-emerald-400 mb-1">&lt; 1 second</div>
+            <div class="text-sm text-slate-400">Deterministic finality, ready for real-time financial workflows.</div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+            <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Fees</div>
+            <div class="text-2xl font-bold text-emerald-400 mb-1">~$0.001</div>
+            <div class="text-sm text-slate-400">Per transaction, paid in USDC. Predictable dollar-denominated cost.</div>
+          </div>
+          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
+            <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Stablecoin-native</div>
+            <div class="text-2xl font-bold text-emerald-400 mb-1">USDC</div>
+            <div class="text-sm text-slate-400">No wrapped tokens, no approvals, no separate gas asset.</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Tech stack ───────────────────────────────────────────── -->
+      <section id="tech" class="max-w-6xl mx-auto px-6 py-16 border-t border-slate-900">
+        <div class="text-center mb-10">
+          <div class="text-xs uppercase tracking-wider text-blue-400 mb-2">Tech stack</div>
+          <h2 class="text-3xl md:text-4xl font-bold mb-3">Built with</h2>
+        </div>
+        <div class="flex flex-wrap justify-center gap-3">
+          <span class="px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-sm">Arc Network</span>
+          <span class="px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-sm">Circle USDC</span>
+          <span class="px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-sm">Solidity 0.8.24</span>
+          <span class="px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-sm">Hardhat</span>
+          <span class="px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-sm">ethers.js v6</span>
+          <span class="px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-sm">Tailwind CSS</span>
+          <span class="px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-sm">EIP-6963 wallet discovery</span>
+          <span class="px-4 py-2 bg-slate-900 border border-slate-800 rounded-full text-sm">Vanilla JavaScript</span>
+        </div>
+        <div class="text-center mt-6 text-sm text-slate-500">
+          25 unit tests · 2 contracts deployed · 8 on-chain transactions ·
+          <a
+            href="https://github.com/QuocTuan0409/arc-simple-payment"
+            target="_blank"
+            class="text-blue-400 hover:underline"
+            >MIT licensed source ↗</a
+          >
+        </div>
+      </section>
+
+      <!-- ── Final CTA ────────────────────────────────────────────── -->
+      <section class="max-w-3xl mx-auto px-6 py-16 text-center border-t border-slate-900">
+        <h2 class="text-3xl md:text-4xl font-bold mb-3">Try it yourself</h2>
+        <p class="text-slate-400 mb-6">
+          Need a browser wallet (MetaMask, Rabby, OKX…) and Arc Testnet USDC from
+          <a href="https://faucet.circle.com" target="_blank" class="text-blue-400 hover:underline">faucet.circle.com</a>.
+          The dashboard runs entirely client-side — no server, no tracking.
+        </p>
+        <button
+          id="ctaConnectBtn"
+          class="px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition"
+        >
+          Connect Wallet to Open Dashboard
+        </button>
+      </section>
+    </main>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- DASHBOARD VIEW (visible when connected)                      -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <main id="dashboardView" class="hidden max-w-6xl mx-auto px-6 py-8 fade-in">
       <!-- Wallet info -->
       <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -147,32 +537,78 @@
           <p class="text-slate-500 text-sm">No payment events yet for your agents.</p>
         </div>
       </section>
-
-      <!-- Footer info -->
-      <footer class="mt-10 pt-6 border-t border-slate-800 text-xs text-slate-500 text-center">
-        <p>
-          Contract:
-          <a
-            id="contractLink"
-            class="text-blue-400 hover:underline mono"
-            target="_blank"
-            rel="noreferrer"
-          ></a>
-        </p>
-        <p class="mt-1">
-          Source:
-          <a
-            href="https://github.com/QuocTuan0409/arc-simple-payment"
-            class="text-blue-400 hover:underline"
-            target="_blank"
-            rel="noreferrer"
-            >github.com/QuocTuan0409/arc-simple-payment</a
-          >
-        </p>
-      </footer>
     </main>
 
-    <!-- ───── Wallet Picker Modal (EIP-6963) ───── -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Footer (always visible)                                       -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <footer class="border-t border-slate-900 mt-12">
+      <div class="max-w-6xl mx-auto px-6 py-8 grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+        <div>
+          <div class="font-semibold text-slate-200 mb-2">AgentPay</div>
+          <p class="text-slate-500 text-xs">
+            A learning project demonstrating on-chain budget controls for
+            autonomous agents on Arc Testnet. MIT licensed.
+          </p>
+        </div>
+        <div>
+          <div class="font-semibold text-slate-200 mb-2">On-chain</div>
+          <ul class="space-y-1 text-slate-400 text-xs">
+            <li>
+              Contract:
+              <a
+                id="contractLinkFooter"
+                target="_blank"
+                rel="noreferrer"
+                class="text-blue-400 hover:underline mono"
+              ></a>
+            </li>
+            <li>
+              Network:
+              <a href="https://docs.arc.io" target="_blank" class="text-blue-400 hover:underline">
+                Arc Testnet (chainId 5042002)
+              </a>
+            </li>
+            <li>
+              Faucet:
+              <a href="https://faucet.circle.com" target="_blank" class="text-blue-400 hover:underline">
+                faucet.circle.com
+              </a>
+            </li>
+          </ul>
+        </div>
+        <div>
+          <div class="font-semibold text-slate-200 mb-2">Source</div>
+          <ul class="space-y-1 text-slate-400 text-xs">
+            <li>
+              <a
+                href="https://github.com/QuocTuan0409/arc-simple-payment"
+                target="_blank"
+                class="text-blue-400 hover:underline"
+                >GitHub repo ↗</a
+              >
+            </li>
+            <li>
+              <a
+                href="https://github.com/QuocTuan0409/arc-simple-payment/blob/master/docs/AGENTPAY.md"
+                target="_blank"
+                class="text-blue-400 hover:underline"
+                >docs/AGENTPAY.md ↗</a
+              >
+            </li>
+            <li>
+              <a href="https://docs.arc.io" target="_blank" class="text-blue-400 hover:underline">
+                Arc docs ↗
+              </a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </footer>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Wallet Picker Modal (EIP-6963)                                -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
     <div
       id="walletPickerModal"
       class="hidden fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50 px-4"
@@ -197,92 +633,483 @@
       </div>
     </div>
 
-    <!-- ───── Create Agent Modal ───── -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Create Agent Modal                                            -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
     <div
       id="createModal"
-      class="hidden fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50 px-4"
+      class="hidden fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50 px-4 py-8 overflow-y-auto"
     >
-      <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6">
+      <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-6 my-auto">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-lg font-semibold">Create Agent</h3>
+          <h3 class="text-lg font-semibold">Create an agent</h3>
           <button id="closeCreateBtn" class="text-slate-400 hover:text-slate-200 text-xl">×</button>
         </div>
+
+        <!-- ── What this does (intro) ────────────────────────────── -->
+        <div class="bg-slate-950 border border-slate-800 rounded-lg p-3 mb-4 text-sm">
+          <p class="text-slate-300 mb-2">
+            <strong class="text-blue-400">What is an "agent"?</strong>
+          </p>
+          <p class="text-slate-400 text-xs leading-relaxed mb-2">
+            An <strong>agent</strong> is a wallet address that's allowed to spend USDC
+            on your behalf — under rules <em>you</em> set and the contract enforces.
+          </p>
+          <p class="text-slate-400 text-xs leading-relaxed">
+            Examples: your AI bot's wallet, a deployment script wallet, or a freelancer
+            payout pipeline. For this demo, use your own wallet as the agent — it's the
+            simplest setup to try.
+          </p>
+        </div>
+
         <form id="createAgentForm" class="space-y-4">
+          <!-- ── Agent name (nickname) ─────────────────────────────── -->
           <div>
-            <label class="block text-xs text-slate-400 uppercase tracking-wide mb-1">
-              Agent address
+            <label class="flex items-center justify-between text-xs uppercase tracking-wide mb-1">
+              <span class="text-slate-300 font-semibold">1. Agent nickname</span>
+              <span class="text-slate-500 normal-case">optional — local only</span>
+            </label>
+            <input
+              type="text"
+              id="formAgentName"
+              maxlength="40"
+              placeholder='e.g. "Research Bot", "Dev Wallet", "Freelancer Payouts"'
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            />
+            <p class="mt-1 text-xs text-slate-500">
+              Saved in your browser only — not on-chain. Helps you identify this agent later.
+              You can change it anytime from the agent card.
+            </p>
+          </div>
+
+          <!-- ── Agent address ─────────────────────────────────────── -->
+          <div>
+            <label class="flex items-center justify-between text-xs uppercase tracking-wide mb-1">
+              <span class="text-slate-300 font-semibold">2. Agent wallet address</span>
+              <span class="text-slate-500 normal-case">who will be spending</span>
             </label>
             <input
               type="text"
               id="formAgentAddr"
               required
-              placeholder="0x... (or click 'Use my wallet' below)"
+              placeholder="0x... paste an address, or click below"
               class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mono text-sm focus:outline-none focus:border-blue-500"
             />
             <button
               type="button"
               id="useMyWalletBtn"
-              class="mt-1 text-xs text-blue-400 hover:underline"
+              class="mt-1.5 text-xs text-blue-400 hover:underline"
             >
-              Use my wallet as agent (single-wallet demo)
+              → Use my connected wallet (single-wallet demo)
             </button>
+            <p class="mt-1 text-xs text-slate-500">
+              The owner (you) keeps control. The agent (this address) is the one that
+              actually calls <code class="text-emerald-400">agentPay()</code> later.
+              In the demo they can be the same wallet.
+            </p>
           </div>
 
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs text-slate-400 uppercase tracking-wide mb-1">
-                Daily limit (USDC)
-              </label>
-              <input
-                type="number"
-                id="formDailyLimit"
-                step="0.01"
-                min="0.01"
-                required
-                value="0.1"
-                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label class="block text-xs text-slate-400 uppercase tracking-wide mb-1">
-                Per-tx limit (USDC)
-              </label>
-              <input
-                type="number"
-                id="formPerTxLimit"
-                step="0.01"
-                min="0.01"
-                required
-                value="0.02"
-                class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
+          <!-- ── Daily limit ───────────────────────────────────────── -->
+          <div>
+            <label class="flex items-center justify-between text-xs uppercase tracking-wide mb-1">
+              <span class="text-slate-300 font-semibold">3. Daily limit (USDC)</span>
+              <span class="text-slate-500 normal-case">max spend / 24 h</span>
+            </label>
+            <input
+              type="number"
+              id="formDailyLimit"
+              step="0.01"
+              min="0.01"
+              required
+              value="0.1"
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            />
+            <p class="mt-1 text-xs text-slate-500">
+              Total the agent can move in a UTC day. Resets at 00:00 UTC.
+              <span class="text-slate-400">e.g. <code class="text-emerald-400">5</code></span>
+              = max $5 of USDC spent before the contract starts reverting.
+            </p>
           </div>
 
-          <p class="text-xs text-slate-500">
-            Per-tx limit must be ≤ daily limit. Limits cap the agent's spend on-chain — they
-            cannot be bypassed by application bugs or a compromised key.
-          </p>
+          <!-- ── Per-tx limit ──────────────────────────────────────── -->
+          <div>
+            <label class="flex items-center justify-between text-xs uppercase tracking-wide mb-1">
+              <span class="text-slate-300 font-semibold">4. Per-tx limit (USDC)</span>
+              <span class="text-slate-500 normal-case">max spend / call</span>
+            </label>
+            <input
+              type="number"
+              id="formPerTxLimit"
+              step="0.01"
+              min="0.01"
+              required
+              value="0.02"
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            />
+            <p class="mt-1 text-xs text-slate-500">
+              Cap on a single <code class="text-emerald-400">agentPay()</code> call.
+              Must be ≤ daily limit.
+              <span class="text-slate-400">e.g. <code class="text-emerald-400">0.10</code></span>
+              = no single API call can charge more than $0.10.
+            </p>
+          </div>
+
+          <!-- ── Preview ───────────────────────────────────────────── -->
+          <div class="bg-blue-950/30 border border-blue-900/50 rounded-lg p-3 text-xs">
+            <p class="text-blue-300 font-semibold mb-1">What happens when you click Register</p>
+            <ol class="text-slate-400 space-y-0.5 list-decimal list-inside">
+              <li>Your wallet pops up to sign a transaction.</li>
+              <li>The contract stores the agent + limits on Arc Testnet.</li>
+              <li>You'll be the <em>owner</em>; only you can change limits, pause, or revoke.</li>
+              <li>Before the agent can actually pay anyone, you'll need to whitelist
+                  the receiver address (coming next).</li>
+            </ol>
+          </div>
 
           <div id="createError" class="hidden text-sm text-red-400 bg-red-950/40 border border-red-900 rounded p-2"></div>
 
           <button
             type="submit"
             id="submitCreateBtn"
-            class="w-full px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Register Agent
+          </button>
+
+          <p class="text-center text-xs text-slate-500">
+            Costs ~$0.001 of testnet USDC for gas. No real money.
+          </p>
+        </form>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Generic Confirmation Modal                                    -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div
+      id="confirmModal"
+      class="hidden fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-[60] px-4 py-8 overflow-y-auto"
+    >
+      <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-6 my-auto">
+        <div class="flex items-center justify-between mb-4">
+          <h3 id="confirmTitle" class="text-lg font-semibold">Confirm action</h3>
+          <button id="confirmCloseBtn" class="text-slate-400 hover:text-slate-200 text-xl">×</button>
+        </div>
+        <div id="confirmBody" class="text-sm text-slate-300 mb-5 whitespace-pre-line bg-slate-950 border border-slate-800 rounded-lg p-4 mono"></div>
+        <div class="flex gap-2">
+          <button
+            id="confirmCancelBtn"
+            class="flex-1 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg transition"
+          >
+            Cancel
+          </button>
+          <button
+            id="confirmOkBtn"
+            class="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition"
+          >
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Rename Agent Modal                                            -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div
+      id="renameModal"
+      class="hidden fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50 px-4"
+    >
+      <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold">Rename agent</h3>
+          <button id="closeRenameBtn" class="text-slate-400 hover:text-slate-200 text-xl">×</button>
+        </div>
+        <form id="renameForm" class="space-y-4">
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-300 font-semibold mb-1">
+              Agent address
+            </label>
+            <input
+              type="text"
+              id="renameAgentAddr"
+              readonly
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mono text-xs text-slate-400"
+            />
+          </div>
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-300 font-semibold mb-1">
+              New nickname
+            </label>
+            <input
+              type="text"
+              id="renameInput"
+              maxlength="40"
+              autofocus
+              placeholder='e.g. "Research Bot", "Dev Wallet"'
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            />
+            <p class="mt-1.5 text-xs text-slate-500">
+              Saved in your browser only (localStorage). Other people viewing this site
+              won't see your nickname. Leave empty to clear.
+            </p>
+          </div>
+          <div class="flex gap-2">
+            <button
+              type="button"
+              id="renameCancelBtn"
+              class="flex-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              class="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition"
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Send Payment Modal (the agentPay() call — has memo!)         -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div
+      id="sendModal"
+      class="hidden fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50 px-4 py-8 overflow-y-auto"
+    >
+      <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-6 my-auto">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold">Send payment via agent</h3>
+          <button id="closeSendBtn" class="text-slate-400 hover:text-slate-200 text-xl">×</button>
+        </div>
+
+        <div class="bg-blue-950/30 border border-blue-900/50 rounded-lg p-3 mb-4 text-xs">
+          <p class="text-blue-300 font-semibold mb-1">This calls agentPay(to, memo) payable</p>
+          <p class="text-slate-400">
+            The contract checks: agent active? service in allowlist? amount ≤ per-tx?
+            ≤ remaining daily? — then forwards USDC and emits an event with your memo.
+          </p>
+        </div>
+
+        <form id="sendPaymentForm" class="space-y-4">
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-300 font-semibold mb-1">
+              Agent (sender)
+            </label>
+            <input
+              type="text"
+              id="sendAgentAddr"
+              readonly
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mono text-sm text-slate-400"
+            />
+            <p class="mt-1 text-xs text-slate-500">
+              Only this agent can call agentPay (you must be signed in with its key).
+            </p>
+          </div>
+
+          <div>
+            <label class="flex items-center justify-between text-xs uppercase tracking-wide mb-1">
+              <span class="text-slate-300 font-semibold">Receiver address</span>
+              <span class="text-slate-500 normal-case">must be whitelisted</span>
+            </label>
+            <input
+              type="text"
+              id="sendToAddr"
+              required
+              placeholder="0x... an address from this agent's allowlist"
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mono text-sm focus:outline-none focus:border-blue-500"
+            />
+            <p class="mt-1 text-xs text-slate-500">
+              If this address isn't in the agent's allowed services, the tx will revert.
+            </p>
+          </div>
+
+          <div>
+            <label class="flex items-center justify-between text-xs uppercase tracking-wide mb-1">
+              <span class="text-slate-300 font-semibold">Amount for THIS payment (USDC)</span>
+              <span class="text-slate-500 normal-case">just one transfer</span>
+            </label>
+            <input
+              type="number"
+              id="sendAmount"
+              required
+              step="0.0001"
+              min="0.0001"
+              value="0.01"
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            />
+            <p class="mt-1 text-xs text-slate-500">
+              The amount this single <code class="text-emerald-400">agentPay()</code> call will send.
+              <strong class="text-slate-300">Not</strong> the daily total. Caps shown below:
+            </p>
+            <div id="sendLimitsInfo" class="mt-2 grid grid-cols-2 gap-2 text-xs">
+              <div class="bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Per-tx cap</div>
+                <div class="text-blue-400 font-semibold mono" id="sendPerTxInfo">—</div>
+              </div>
+              <div class="bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5">
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Remaining today</div>
+                <div class="text-emerald-400 font-semibold mono" id="sendRemainingInfo">—</div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="flex items-center justify-between text-xs uppercase tracking-wide mb-1">
+              <span class="text-slate-300 font-semibold">Memo (logged on-chain)</span>
+              <span class="text-slate-500 normal-case">free-form text</span>
+            </label>
+            <input
+              type="text"
+              id="sendMemo"
+              required
+              maxlength="100"
+              placeholder='e.g. "claude-api-call" or "invoice-2026-05"'
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-500"
+            />
+            <p class="mt-1 text-xs text-slate-500">
+              Appears in the PaymentExecuted event log — searchable forever on arcscan.
+              Use it to label what this payment is for.
+            </p>
+          </div>
+
+          <div id="sendDryRun" class="hidden bg-slate-950 border border-slate-800 rounded p-3 text-xs">
+            <p class="text-slate-400 mb-1">Dry-run check (off-chain, free):</p>
+            <p id="sendDryRunResult" class="mono"></p>
+          </div>
+
+          <div id="sendError" class="hidden text-sm text-red-400 bg-red-950/40 border border-red-900 rounded p-2"></div>
+
+          <div class="flex gap-2">
+            <button
+              type="button"
+              id="checkCanPayBtn"
+              class="flex-1 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg transition"
+            >
+              Dry-run check
+            </button>
+            <button
+              type="submit"
+              id="submitSendBtn"
+              class="flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Send payment
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Add Allowed Service Modal (supports batch / multiple addrs)  -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div
+      id="addServiceModal"
+      class="hidden fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-50 px-4 py-8 overflow-y-auto"
+    >
+      <div class="bg-slate-900 border border-slate-700 rounded-xl max-w-lg w-full p-6 my-auto">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="text-lg font-semibold">Whitelist service(s)</h3>
+          <button id="closeServiceBtn" class="text-slate-400 hover:text-slate-200 text-xl">×</button>
+        </div>
+
+        <div class="bg-emerald-950/30 border border-emerald-900/50 rounded-lg p-3 mb-4 text-xs">
+          <p class="text-emerald-300 font-semibold mb-1">What does this do?</p>
+          <p class="text-slate-400">
+            Adds receiver address(es) to the agent's allowlist. Each address gets one tx
+            (the contract function only takes one at a time). After this, the agent can
+            call <code class="text-emerald-400">agentPay()</code> to send USDC to those
+            addresses — within its budget caps.
+          </p>
+        </div>
+
+        <form id="addServiceForm" class="space-y-4">
+          <div>
+            <label class="block text-xs uppercase tracking-wide text-slate-300 font-semibold mb-1">
+              Agent (owner controls)
+            </label>
+            <input
+              type="text"
+              id="serviceAgentAddr"
+              readonly
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mono text-sm text-slate-400"
+            />
+          </div>
+
+          <div>
+            <label class="flex items-center justify-between text-xs uppercase tracking-wide mb-1">
+              <span class="text-slate-300 font-semibold">Service addresses to whitelist</span>
+              <span class="text-slate-500 normal-case">one per line, or comma-separated</span>
+            </label>
+            <textarea
+              id="serviceAddrs"
+              required
+              rows="5"
+              placeholder="0x...
+
+0x...
+
+0x..."
+              class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 mono text-xs focus:outline-none focus:border-blue-500 resize-y"
+            ></textarea>
+            <div class="mt-1.5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                id="useMyWalletAsService"
+                class="text-xs text-blue-400 hover:underline"
+              >
+                → Add my connected wallet
+              </button>
+              <button
+                type="button"
+                id="addDemoServicesBtn"
+                class="text-xs text-blue-400 hover:underline"
+              >
+                → Append 3 random demo addresses
+              </button>
+              <button
+                type="button"
+                id="clearServicesBtn"
+                class="text-xs text-slate-500 hover:underline"
+              >
+                Clear
+              </button>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">
+              Each address triggers a separate transaction (the contract's
+              <code class="text-emerald-400">addAllowedService(agent, service)</code> takes
+              one at a time). Your wallet will ask to sign each one — usually 1–2 seconds each.
+            </p>
+          </div>
+
+          <div id="servicesPreview" class="hidden bg-slate-950 border border-slate-800 rounded-lg p-3 text-xs space-y-1"></div>
+
+          <div id="servicesProgress" class="hidden bg-blue-950/30 border border-blue-900/50 rounded-lg p-3 text-sm"></div>
+
+          <div id="serviceError" class="hidden text-sm text-red-400 bg-red-950/40 border border-red-900 rounded p-2"></div>
+
+          <button
+            type="submit"
+            id="submitServiceBtn"
+            class="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Whitelist Service(s)
           </button>
         </form>
       </div>
     </div>
 
-    <!-- ───── App logic ───── -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- App logic                                                     -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
     <script>
       // ─── Configuration ───────────────────────────────────────────────────
       const ARC_TESTNET = {
         chainId: 5042002,
-        chainIdHex: "0x4cf0d2", // 5042002 in hex
+        chainIdHex: "0x4cf0d2",
         name: "Arc Testnet",
         rpc: "https://rpc.testnet.arc.network",
         explorer: "https://testnet.arcscan.app",
@@ -291,8 +1118,8 @@
       };
 
       const AGENTPAY_ADDRESS = "0x1C0cf5a6d6b1EA6EDdF878Aef3e35c2b930f4D31";
+      const DEMO_AGENT_ADDRESS = "0xB7e49df0A434cFB2C5666F846c5Bb322fbEf5807"; // for live stats
 
-      // Minimal ABI — only the functions/events the UI uses.
       const AGENTPAY_ABI = [
         "function registerAgent(address agent, uint256 dailyLimit, uint256 perTxLimit) external",
         "function getAgent(address agent) view returns (tuple(address owner, uint256 dailyLimit, uint256 perTxLimit, uint256 dailySpent, uint256 lastResetDay, bool active, bool registered, uint256 totalSpent, uint256 paymentCount))",
@@ -300,8 +1127,15 @@
         "function getAgentsByOwner(address owner) view returns (address[])",
         "function pauseAgent(address agent) external",
         "function unpauseAgent(address agent) external",
+        "function addAllowedService(address agent, address service) external",
+        "function removeAllowedService(address agent, address service) external",
+        "function isServiceAllowed(address agent, address service) view returns (bool)",
+        "function agentPay(address to, string calldata memo) external payable",
+        "function canPay(address agent, address to, uint256 amount) view returns (bool ok, string memory reason)",
         "event AgentRegistered(address indexed agent, address indexed owner, uint256 dailyLimit, uint256 perTxLimit)",
         "event PaymentExecuted(address indexed agent, address indexed to, uint256 amount, string memo, uint256 timestamp)",
+        "event ServiceAllowed(address indexed agent, address indexed service)",
+        "event ServiceRevoked(address indexed agent, address indexed service)",
         "event AgentPaused(address indexed agent)",
         "event AgentUnpaused(address indexed agent)",
       ];
@@ -311,32 +1145,75 @@
       const show = (id) => $(id).classList.remove("hidden");
       const hide = (id) => $(id).classList.add("hidden");
 
-      function shortAddr(addr) {
-        if (!addr) return "—";
-        return addr.slice(0, 6) + "…" + addr.slice(-4);
-      }
-
-      function fmtUsdc(wei) {
-        return Number(ethers.formatUnits(wei, 18)).toLocaleString(undefined, {
-          maximumFractionDigits: 4,
+      // ─── Generic styled confirmation modal ───────────────────────────────
+      let confirmResolve = null;
+      function showConfirm({ title = "Confirm action", body, okText = "Confirm", cancelText = "Cancel", danger = false }) {
+        return new Promise((resolve) => {
+          confirmResolve = resolve;
+          $("confirmTitle").textContent = title;
+          $("confirmBody").textContent = body;
+          $("confirmOkBtn").textContent = okText;
+          $("confirmCancelBtn").textContent = cancelText;
+          // Color OK button based on danger flag
+          $("confirmOkBtn").className = danger
+            ? "flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg transition"
+            : "flex-1 px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition";
+          show("confirmModal");
         });
       }
+      function resolveConfirm(ok) {
+        hide("confirmModal");
+        if (confirmResolve) confirmResolve(ok);
+        confirmResolve = null;
+      }
 
-      function timeAgo(ts) {
+      const shortAddr = (a) => (a ? a.slice(0, 6) + "…" + a.slice(-4) : "—");
+      const fmtUsdc = (wei) =>
+        Number(ethers.formatUnits(wei, 18)).toLocaleString(undefined, {
+          maximumFractionDigits: 4,
+        });
+      const timeAgo = (ts) => {
         const diff = Math.floor(Date.now() / 1000) - Number(ts);
         if (diff < 60) return `${diff}s ago`;
         if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
         if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
         return `${Math.floor(diff / 86400)}d ago`;
-      }
+      };
 
       // ─── State ───────────────────────────────────────────────────────────
       let provider, signer, contract, userAddr;
-      let activeWalletProvider = null; // the EIP-1193 provider currently in use
+      let activeWalletProvider = null;
+
+      // ─── Local storage helpers ───────────────────────────────────────────
+      const STORAGE_PREFIX = "agentpay_";
+      function lsGet(key, fallback = null) {
+        try { return JSON.parse(localStorage.getItem(STORAGE_PREFIX + key)) ?? fallback; }
+        catch { return fallback; }
+      }
+      function lsSet(key, val) {
+        try { localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(val)); } catch {}
+      }
+      function lsDel(key) {
+        try { localStorage.removeItem(STORAGE_PREFIX + key); } catch {}
+      }
+
+      // ─── Agent labels (off-chain nicknames) ──────────────────────────────
+      function getAgentLabel(addr) {
+        return lsGet(`label:${addr.toLowerCase()}`, "");
+      }
+      function setAgentLabel(addr, label) {
+        if (label) lsSet(`label:${addr.toLowerCase()}`, label);
+        else lsDel(`label:${addr.toLowerCase()}`);
+      }
+
+      // ─── Init: explorer links ────────────────────────────────────────────
+      const contractUrl = `${ARC_TESTNET.explorer}/address/${AGENTPAY_ADDRESS}`;
+      $("contractLinkHero").href = contractUrl;
+      $("contractLinkFooter").textContent = shortAddr(AGENTPAY_ADDRESS);
+      $("contractLinkFooter").href = contractUrl;
 
       // ─── EIP-6963 wallet discovery ───────────────────────────────────────
-      const detectedWallets = []; // { info: {uuid, name, icon, rdns}, provider }[]
-
+      const detectedWallets = [];
       function listenForWallets() {
         window.addEventListener("eip6963:announceProvider", (ev) => {
           const detail = ev.detail;
@@ -346,11 +1223,8 @@
         });
         window.dispatchEvent(new Event("eip6963:requestProvider"));
       }
-
       function walletsForPicker() {
-        // Prefer EIP-6963 announcements
         if (detectedWallets.length > 0) return detectedWallets.slice();
-        // Fallback: legacy window.ethereum
         if (window.ethereum) {
           return [
             {
@@ -367,14 +1241,33 @@
         return [];
       }
 
-      // ─── Init link to explorer ───────────────────────────────────────────
-      $("contractLink").textContent = AGENTPAY_ADDRESS;
-      $("contractLink").href = `${ARC_TESTNET.explorer}/address/${AGENTPAY_ADDRESS}`;
+      // ─── Live on-chain stats (no wallet required) ────────────────────────
+      async function loadLiveStats() {
+        try {
+          const pub = new ethers.JsonRpcProvider(ARC_TESTNET.rpc);
+          const pubContract = new ethers.Contract(AGENTPAY_ADDRESS, AGENTPAY_ABI, pub);
+          const agent = await pubContract.getAgent(DEMO_AGENT_ADDRESS);
+          if (agent.registered) {
+            $("statTotalPayments").textContent = agent.paymentCount.toString();
+            $("statTotalVolume").textContent = fmtUsdc(agent.totalSpent);
+            $("statAgentActive").textContent = agent.active ? "Active" : "Paused";
+            $("statAgentActive").className =
+              "text-2xl font-bold " + (agent.active ? "text-emerald-400" : "text-amber-400");
+          } else {
+            $("statTotalPayments").textContent = "0";
+            $("statTotalVolume").textContent = "0";
+            $("statAgentActive").textContent = "—";
+          }
+        } catch (e) {
+          console.warn("loadLiveStats failed", e);
+          $("statTotalPayments").textContent = "—";
+          $("statTotalVolume").textContent = "—";
+          $("statAgentActive").textContent = "—";
+        }
+      }
 
       // ─── Connect / disconnect ────────────────────────────────────────────
-
       async function openWalletPicker() {
-        // Give late-announcing wallets a tiny window to show up.
         await new Promise((r) => setTimeout(r, 80));
         const wallets = walletsForPicker();
         const listEl = $("walletPickerList");
@@ -393,8 +1286,7 @@
               ? `<img src="${w.info.icon}" alt="${w.info.name}" class="w-8 h-8 rounded">`
               : `<div class="w-8 h-8 bg-slate-700 rounded flex items-center justify-center text-xs text-slate-400">${w.info.name.charAt(0).toUpperCase()}</div>`;
             return `
-              <button
-                data-uuid="${w.info.uuid}"
+              <button data-uuid="${w.info.uuid}"
                 class="wallet-btn w-full bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg p-3 flex items-center gap-3 text-left transition"
               >
                 ${iconHtml}
@@ -420,35 +1312,52 @@
 
         show("walletPickerModal");
       }
-
       function closeWalletPicker() {
         hide("walletPickerModal");
       }
 
-      async function connectWith(p1193, walletName) {
+      async function connectWith(p1193, walletName, opts = {}) {
         try {
           activeWalletProvider = p1193;
-          await p1193.request({ method: "eth_requestAccounts" });
+          if (opts.silent) {
+            // Try to read existing accounts without prompting
+            const accs = await p1193.request({ method: "eth_accounts" });
+            if (!accs || accs.length === 0) {
+              activeWalletProvider = null;
+              return false;
+            }
+          } else {
+            await p1193.request({ method: "eth_requestAccounts" });
+          }
           provider = new ethers.BrowserProvider(p1193);
           signer = await provider.getSigner();
           userAddr = await signer.getAddress();
           contract = new ethers.Contract(AGENTPAY_ADDRESS, AGENTPAY_ABI, signer);
-
-          // Listen for account / chain changes on this specific wallet
           if (p1193.on) {
-            const reload = () => location.reload();
-            p1193.on("accountsChanged", reload);
-            p1193.on("chainChanged", reload);
+            p1193.on("accountsChanged", (accs) => {
+              if (!accs || accs.length === 0) {
+                disconnect();
+              } else {
+                location.reload();
+              }
+            });
+            p1193.on("chainChanged", () => location.reload());
           }
-
+          // Remember which wallet to auto-reconnect to
+          lsSet("lastWalletRdns", walletName || "");
+          lsSet("connected", true);
           await refreshUI();
+          return true;
         } catch (e) {
           console.error("connect failed", e);
-          alert(
-            `Connection to ${walletName || "wallet"} failed: ` +
-              (e?.shortMessage || e?.message || "unknown error")
-          );
+          if (!opts.silent) {
+            alert(
+              `Connection to ${walletName || "wallet"} failed: ` +
+                (e?.shortMessage || e?.message || "unknown error")
+            );
+          }
           activeWalletProvider = null;
+          return false;
         }
       }
 
@@ -458,34 +1367,82 @@
         userAddr = null;
         contract = null;
         activeWalletProvider = null;
+        // Clear auto-reconnect flag
+        lsDel("connected");
+        lsDel("lastWalletRdns");
         $("connectBtn").textContent = "Connect Wallet";
-        hide("connectedView");
+        hide("dashboardView");
         hide("networkBanner");
-        show("disconnectedView");
+        hide("dashboardBtn");
+        show("landingView");
         $("agentsList").innerHTML = "";
         $("activityList").innerHTML = "";
       }
 
-      // Clicking the header button: open picker if disconnected, ask to disconnect if connected
-      function handleHeaderBtnClick() {
-        if (userAddr) {
-          if (confirm("Disconnect wallet from this site? (You'll need to reconnect to view agents.)")) {
-            disconnect();
+      // ─── Try silent reconnect on page load ───────────────────────────────
+      function clearReconnectingState() {
+        document.documentElement.removeAttribute("data-reconnecting");
+        $("reconnectingView").style.display = "none";
+      }
+
+      async function tryAutoReconnect() {
+        if (!lsGet("connected", false)) {
+          clearReconnectingState();
+          return;
+        }
+        // Wait briefly for EIP-6963 announcements
+        await new Promise((r) => setTimeout(r, 200));
+        const lastRdns = lsGet("lastWalletRdns", "");
+        let wallet = null;
+        if (detectedWallets.length > 0) {
+          if (lastRdns) {
+            wallet = detectedWallets.find((w) => w.info.name === lastRdns || w.info.rdns === lastRdns);
           }
+          wallet = wallet || detectedWallets[0];
+        } else if (window.ethereum) {
+          wallet = { info: { name: "Browser wallet" }, provider: window.ethereum };
+        }
+        if (!wallet) {
+          clearReconnectingState();
+          return;
+        }
+        const ok = await connectWith(wallet.provider, wallet.info.name, { silent: true });
+        if (!ok) {
+          // Reconnect failed (user revoked perms or wallet missing) — fall back to landing
+          lsDel("connected");
+          lsDel("lastWalletRdns");
+        }
+        clearReconnectingState();
+      }
+
+      async function handleHeaderBtnClick() {
+        if (userAddr) {
+          const ok = await showConfirm({
+            title: "Disconnect wallet?",
+            body:
+              "You're about to disconnect from this site.\n\n" +
+              "Your agents stay on-chain — you can reconnect anytime to manage them. " +
+              "The wallet itself isn't deleted; only this site's session is cleared.",
+            okText: "Disconnect",
+            cancelText: "Stay connected",
+            danger: true,
+          });
+          if (ok) disconnect();
         } else {
           openWalletPicker();
         }
       }
 
+      // ─── Refresh UI after connect ────────────────────────────────────────
       async function refreshUI() {
         if (!provider || !userAddr) return;
         const network = await provider.getNetwork();
         const isArc = Number(network.chainId) === ARC_TESTNET.chainId;
 
-        // Header / wallet info
         $("connectBtn").textContent = shortAddr(userAddr);
-        hide("disconnectedView");
-        show("connectedView");
+        hide("landingView");
+        show("dashboardView");
+        window.scrollTo({ top: 0, behavior: "smooth" });
 
         $("walletAddr").textContent = shortAddr(userAddr);
         $("walletAddr").title = userAddr;
@@ -515,15 +1472,14 @@
 
       async function switchNetwork() {
         try {
-          await window.ethereum.request({
+          await activeWalletProvider.request({
             method: "wallet_switchEthereumChain",
             params: [{ chainId: ARC_TESTNET.chainIdHex }],
           });
         } catch (e) {
-          // 4902 = network not added yet
           if (e.code === 4902) {
             try {
-              await window.ethereum.request({
+              await activeWalletProvider.request({
                 method: "wallet_addEthereumChain",
                 params: [
                   {
@@ -544,42 +1500,434 @@
         }
       }
 
-      // ─── Load agents owned by user ───────────────────────────────────────
+      // ─── Load allowed services for one agent (from events) ───────────────
+      async function loadAllowedServicesFor(agentAddr) {
+        const allowFilter = contract.filters.ServiceAllowed(agentAddr);
+        const revokeFilter = contract.filters.ServiceRevoked(agentAddr);
+        const latestBlock = await provider.getBlockNumber();
+        const earliest = DEPLOY_BLOCK_HINT;
+
+        // Walk back in chunks like activity log
+        let allowed = new Set();
+        let revokedAt = new Map(); // service -> blockNumber of latest revoke
+
+        let to = latestBlock;
+        let chunks = 0;
+        while (to >= earliest && chunks < MAX_CHUNKS) {
+          const from = Math.max(earliest, to - CHUNK_SIZE + 1);
+          try {
+            const [allows, revokes] = await Promise.all([
+              contract.queryFilter(allowFilter, from, to),
+              contract.queryFilter(revokeFilter, from, to),
+            ]);
+            for (const ev of allows) {
+              const svc = ev.args.service;
+              const prev = revokedAt.get(svc.toLowerCase());
+              if (prev === undefined || ev.blockNumber > prev) {
+                allowed.add(svc);
+              }
+            }
+            for (const ev of revokes) {
+              const svc = ev.args.service.toLowerCase();
+              revokedAt.set(svc, ev.blockNumber);
+            }
+          } catch (e) {
+            console.warn(`skip allowed-svc range ${from}-${to}`, e.shortMessage || e.message);
+          }
+          chunks += 1;
+          if (from <= earliest) break;
+          to = from - 1;
+        }
+
+        // Verify each is currently allowed (allowed - any later revoke)
+        const result = [];
+        for (const svc of allowed) {
+          const r = revokedAt.get(svc.toLowerCase());
+          // We need to compare the LATEST allow event vs revoke. To keep this
+          // simple, just call isServiceAllowed for verification (1 RPC call per).
+          try {
+            const ok = await contract.isServiceAllowed(agentAddr, svc);
+            if (ok) result.push(svc);
+          } catch (_) {
+            /* skip */
+          }
+        }
+        return result;
+      }
+
+      // ─── Agents list ─────────────────────────────────────────────────────
       async function loadAgents() {
         try {
           const agentAddrs = await contract.getAgentsByOwner(userAddr);
           $("agentsCount").textContent = `(${agentAddrs.length})`;
-
           if (agentAddrs.length === 0) {
             show("agentsEmpty");
             $("agentsList").innerHTML = "";
             return;
           }
           hide("agentsEmpty");
-
-          // Fetch each agent's config
           const agents = await Promise.all(
             agentAddrs.map(async (a) => {
               const info = await contract.getAgent(a);
               const remaining = await contract.getRemainingDailyBudget(a);
-              return { addr: a, info, remaining };
+              return { addr: a, info, remaining, services: [] };
             })
           );
-
-          $("agentsList").innerHTML = agents
-            .map((a) => renderAgent(a))
-            .join("");
-
-          // Attach handlers for pause/unpause buttons
-          agents.forEach(({ addr, info }) => {
-            const btn = document.getElementById(`pauseBtn-${addr}`);
-            if (btn) {
-              btn.addEventListener("click", () => togglePause(addr, info.active));
-            }
-          });
+          $("agentsList").innerHTML = agents.map(renderAgent).join("");
+          wireAgentCardEvents(agents);
+          // Load allowed services async (don't block initial render)
+          for (const a of agents) {
+            loadAllowedServicesFor(a.addr).then((services) => {
+              a.services = services;
+              updateServicesDisplay(a.addr, services);
+            });
+          }
         } catch (e) {
           console.error("loadAgents failed", e);
           $("agentsList").innerHTML = `<div class="text-red-400 text-sm">Failed to load agents: ${e.shortMessage || e.message}</div>`;
+        }
+      }
+
+      function wireAgentCardEvents(agents) {
+        agents.forEach(({ addr, info }) => {
+          const btn = document.getElementById(`pauseBtn-${addr}`);
+          if (btn) btn.addEventListener("click", () => togglePause(addr, info.active));
+        });
+        document.querySelectorAll(".send-pay-btn").forEach((btn) => {
+          btn.addEventListener("click", () => openSendModal(btn.getAttribute("data-agent")));
+        });
+        document.querySelectorAll(".add-service-btn").forEach((btn) => {
+          btn.addEventListener("click", () => openAddServiceModal(btn.getAttribute("data-agent")));
+        });
+        document.querySelectorAll(".rename-btn").forEach((btn) => {
+          btn.addEventListener("click", () => openRenameModal(btn.getAttribute("data-agent")));
+        });
+      }
+
+      // ─── Rename Modal ────────────────────────────────────────────────────
+      let renameTargetAddr = null;
+      function openRenameModal(addr) {
+        renameTargetAddr = addr;
+        $("renameAgentAddr").value = addr;
+        const current = getAgentLabel(addr) || "";
+        $("renameInput").value = current;
+        show("renameModal");
+        setTimeout(() => $("renameInput").focus(), 50);
+      }
+      function closeRenameModal() {
+        hide("renameModal");
+        renameTargetAddr = null;
+      }
+      function handleRenameSubmit(ev) {
+        ev.preventDefault();
+        if (!renameTargetAddr) return;
+        const next = $("renameInput").value.trim();
+        setAgentLabel(renameTargetAddr, next);
+        const labelEl = document.getElementById(`label-${renameTargetAddr}`);
+        if (labelEl) labelEl.textContent = next || "Agent";
+        closeRenameModal();
+      }
+
+      function updateServicesDisplay(agentAddr, services) {
+        const el = document.getElementById(`services-${agentAddr}`);
+        if (!el) return;
+        if (services.length === 0) {
+          el.innerHTML = `<p class="text-xs text-slate-500 italic">No services whitelisted yet — agent can't pay anyone until you add at least one.</p>`;
+          return;
+        }
+        const explorerUrl = (a) => `${ARC_TESTNET.explorer}/address/${a}`;
+        el.innerHTML = services
+          .map(
+            (svc) => `
+              <div class="flex items-center justify-between bg-slate-950 border border-slate-800 rounded px-2.5 py-1.5">
+                <span class="mono text-xs text-slate-300" title="${svc}">${shortAddr(svc)}</span>
+                <a href="${explorerUrl(svc)}" target="_blank" class="text-xs text-slate-500 hover:text-blue-400">↗</a>
+              </div>`
+          )
+          .join("");
+      }
+
+      // ─── Send Payment (agentPay) modal ──────────────────────────────────
+      async function openSendModal(agentAddr) {
+        $("sendAgentAddr").value = agentAddr;
+        $("sendToAddr").value = "";
+        $("sendAmount").value = "0.01";
+        $("sendMemo").value = "";
+        $("sendPerTxInfo").textContent = "—";
+        $("sendRemainingInfo").textContent = "—";
+        hide("sendError");
+        hide("sendDryRun");
+        show("sendModal");
+        // Load limits live so user knows the caps right in the modal
+        try {
+          const info = await contract.getAgent(agentAddr);
+          const remaining = await contract.getRemainingDailyBudget(agentAddr);
+          $("sendPerTxInfo").textContent = fmtUsdc(info.perTxLimit) + " USDC";
+          $("sendRemainingInfo").textContent = fmtUsdc(remaining) + " USDC";
+        } catch (e) {
+          console.warn("Couldn't load limits for send modal:", e);
+        }
+      }
+      function closeSendModal() {
+        hide("sendModal");
+      }
+
+      async function handleCheckCanPay() {
+        const agentAddr = $("sendAgentAddr").value.trim();
+        const toAddr = $("sendToAddr").value.trim();
+        const amtStr = $("sendAmount").value.trim();
+        const dryEl = $("sendDryRun");
+        const resEl = $("sendDryRunResult");
+        try {
+          if (!ethers.isAddress(toAddr)) throw new Error("Receiver address is invalid.");
+          const amt = ethers.parseUnits(amtStr || "0", 18);
+          const [ok, reason] = await contract.canPay(agentAddr, toAddr, amt);
+          show("sendDryRun");
+          if (ok) {
+            resEl.innerHTML = `<span class="text-emerald-400">✓ Would succeed.</span>`;
+          } else {
+            resEl.innerHTML = `<span class="text-amber-400">✗ Would revert:</span> ${reason}`;
+          }
+        } catch (e) {
+          show("sendDryRun");
+          resEl.innerHTML = `<span class="text-red-400">Check failed:</span> ${e.shortMessage || e.message}`;
+        }
+      }
+
+      async function handleSendPayment(ev) {
+        ev.preventDefault();
+        hide("sendError");
+        const agentAddr = $("sendAgentAddr").value.trim();
+        const toAddr = $("sendToAddr").value.trim();
+        const amtStr = $("sendAmount").value.trim();
+        const memo = $("sendMemo").value.trim();
+        try {
+          if (!ethers.isAddress(toAddr)) throw new Error("Receiver address is invalid.");
+          if (!memo) throw new Error("Memo is required (so this payment is identifiable on-chain).");
+          const amt = ethers.parseUnits(amtStr, 18);
+          if (userAddr.toLowerCase() !== agentAddr.toLowerCase()) {
+            throw new Error(
+              "You must be signed in as the agent address to call agentPay. " +
+                "In this UI, that means the agent must equal your connected wallet."
+            );
+          }
+
+          // Confirm before signing — payment is irreversible
+          const summary =
+            `Function: agentPay(to, memo) payable\n` +
+            `Contract: ${AGENTPAY_ADDRESS}\n` +
+            `Gas est:  ~$0.001 USDC\n\n` +
+            `From:     ${agentAddr}\n` +
+            `To:       ${toAddr}\n` +
+            `Amount:   ${amtStr} USDC\n` +
+            `Memo:     "${memo}"\n\n` +
+            `Contract will check: agent active? service in\n` +
+            `allowlist? amount ≤ per-tx? ≤ remaining daily?\n` +
+            `Then forward USDC.\n\n` +
+            `This is irreversible.`;
+          const ok = await showConfirm({
+            title: "Send payment via agent?",
+            body: summary,
+            okText: "Send payment",
+            danger: true,
+          });
+          if (!ok) return;
+
+          $("submitSendBtn").disabled = true;
+          $("submitSendBtn").textContent = "Submitting…";
+          const tx = await contract.agentPay(toAddr, memo, { value: amt });
+          $("submitSendBtn").textContent = "Waiting for confirmation…";
+          await tx.wait();
+          closeSendModal();
+          await loadAgents();
+          await loadActivity();
+        } catch (e) {
+          $("sendError").textContent = e.shortMessage || e.reason || e.message || "Unknown error";
+          $("sendError").classList.remove("hidden");
+        } finally {
+          $("submitSendBtn").disabled = false;
+          $("submitSendBtn").textContent = "Send payment";
+        }
+      }
+
+      // ─── Add Allowed Service modal (batch support) ──────────────────────
+      function openAddServiceModal(agentAddr) {
+        $("serviceAgentAddr").value = agentAddr;
+        $("serviceAddrs").value = "";
+        hide("serviceError");
+        hide("servicesPreview");
+        hide("servicesProgress");
+        show("addServiceModal");
+      }
+      function closeAddServiceModal() {
+        hide("addServiceModal");
+      }
+      function useMyWalletAsService() {
+        if (!userAddr) return;
+        const ta = $("serviceAddrs");
+        const lines = ta.value.split(/[\s,]+/).filter(Boolean);
+        if (!lines.includes(userAddr)) {
+          ta.value = (ta.value.trim() ? ta.value.trim() + "\n" : "") + userAddr;
+        }
+      }
+      function clearServices() {
+        $("serviceAddrs").value = "";
+        hide("servicesPreview");
+      }
+      function appendDemoServices() {
+        // Generate 3 random addresses just for demo purposes
+        const newOnes = [];
+        for (let i = 0; i < 3; i++) {
+          const wallet = ethers.Wallet.createRandom();
+          newOnes.push(wallet.address);
+        }
+        const ta = $("serviceAddrs");
+        ta.value = (ta.value.trim() ? ta.value.trim() + "\n" : "") + newOnes.join("\n");
+      }
+
+      // Parse textarea into a list of valid + invalid addresses
+      function parseServiceAddrs(text) {
+        const raw = text.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+        const seen = new Set();
+        const valid = [];
+        const invalid = [];
+        for (const addr of raw) {
+          if (seen.has(addr.toLowerCase())) continue;
+          seen.add(addr.toLowerCase());
+          if (ethers.isAddress(addr)) {
+            valid.push(ethers.getAddress(addr)); // checksum
+          } else {
+            invalid.push(addr);
+          }
+        }
+        return { valid, invalid };
+      }
+
+      async function handleAddService(ev) {
+        ev.preventDefault();
+        hide("serviceError");
+        hide("servicesPreview");
+        hide("servicesProgress");
+
+        const agentAddr = $("serviceAgentAddr").value.trim();
+        const text = $("serviceAddrs").value;
+        const { valid, invalid } = parseServiceAddrs(text);
+
+        if (invalid.length > 0) {
+          $("serviceError").textContent =
+            "Some addresses are not valid Ethereum addresses: " +
+            invalid.slice(0, 3).join(", ") +
+            (invalid.length > 3 ? `, +${invalid.length - 3} more` : "");
+          show("serviceError");
+          return;
+        }
+        if (valid.length === 0) {
+          $("serviceError").textContent = "Add at least one address.";
+          show("serviceError");
+          return;
+        }
+
+        // Styled confirmation before sending N transactions
+        const preview = valid
+          .slice(0, 5)
+          .map((a) => `  • ${a}`)
+          .join("\n") + (valid.length > 5 ? `\n  • +${valid.length - 5} more` : "");
+        const isSingle = valid.length === 1;
+        const summary = isSingle
+          ? `Function: addAllowedService(agent, service)\n` +
+            `Contract: ${AGENTPAY_ADDRESS}\n` +
+            `Gas est:  ~$0.001 USDC\n\n` +
+            `Agent:    ${agentAddr}\n` +
+            `Service:  ${valid[0]}\n\n` +
+            `Effect: agent will be allowed to pay this address\n` +
+            `(within its daily + per-tx limits).`
+          : `Function: addAllowedService(agent, service) × ${valid.length}\n` +
+            `Contract: ${AGENTPAY_ADDRESS}\n` +
+            `Gas est:  ~$${(0.001 * valid.length).toFixed(3)} USDC total\n\n` +
+            `Agent:    ${agentAddr}\n` +
+            `Services:\n${preview}\n\n` +
+            `Wallet will pop up ${valid.length} times — one per service.`;
+        const ok = await showConfirm({
+          title: isSingle ? "Whitelist 1 service?" : `Whitelist ${valid.length} services?`,
+          body: summary,
+          okText: isSingle ? "Whitelist" : `Send ${valid.length} txs`,
+        });
+        if (!ok) return;
+
+        $("submitServiceBtn").disabled = true;
+        show("servicesProgress");
+        const results = [];
+
+        for (let i = 0; i < valid.length; i++) {
+          const svc = valid[i];
+          $("servicesProgress").innerHTML = `
+            <p class="text-blue-300 font-semibold mb-1">
+              Submitting ${i + 1} / ${valid.length}
+            </p>
+            <p class="text-slate-400 text-xs mono">${svc}</p>
+            ${
+              results.length > 0
+                ? `<div class="mt-2 text-xs text-slate-500">
+                     ${results
+                       .map(
+                         (r) =>
+                           `<div>${
+                             r.ok ? "✓" : "✗"
+                           } <span class="mono">${r.addr.slice(0, 10)}…</span> ${
+                             r.note || ""
+                           }</div>`
+                       )
+                       .join("")}
+                   </div>`
+                : ""
+            }
+          `;
+          try {
+            const tx = await contract.addAllowedService(agentAddr, svc);
+            await tx.wait();
+            results.push({ ok: true, addr: svc });
+          } catch (e) {
+            results.push({
+              ok: false,
+              addr: svc,
+              note: "(failed: " + (e?.shortMessage || e?.message || "unknown") + ")",
+            });
+            // If user rejected, stop the batch — they probably want to bail
+            if (e?.code === 4001 || /reject|deny/i.test(e?.message || "")) {
+              break;
+            }
+          }
+        }
+
+        const okCount = results.filter((r) => r.ok).length;
+        const failCount = results.filter((r) => !r.ok).length;
+
+        $("servicesProgress").innerHTML = `
+          <p class="text-emerald-300 font-semibold mb-1">
+            Done: ${okCount} added${failCount > 0 ? `, ${failCount} failed` : ""}
+          </p>
+          <div class="text-xs text-slate-400 space-y-0.5">
+            ${results
+              .map(
+                (r) =>
+                  `<div>${r.ok ? "✓" : "✗"} <span class="mono">${
+                    r.addr.slice(0, 10)
+                  }…${r.addr.slice(-4)}</span> ${r.note || ""}</div>`
+              )
+              .join("")}
+          </div>
+        `;
+
+        $("submitServiceBtn").disabled = false;
+        $("submitServiceBtn").textContent = "Whitelist Service(s)";
+
+        if (okCount > 0) {
+          await loadAgents();
+        }
+
+        // Auto-close after a short delay if everything succeeded
+        if (okCount === results.length && failCount === 0) {
+          setTimeout(() => closeAddServiceModal(), 1500);
         }
       }
 
@@ -588,71 +1936,164 @@
         const dailyLimit = Number(ethers.formatUnits(info.dailyLimit, 18));
         const pct = dailyLimit > 0 ? Math.min(100, Math.floor((dailySpent / dailyLimit) * 100)) : 0;
         const isSelf = addr.toLowerCase() === userAddr.toLowerCase();
-        const statusColor = info.active ? "emerald" : "amber";
-        const statusText = info.active ? "Active" : "Paused";
+        const statusActive = info.active;
+        const statusColor = statusActive ? "emerald" : "amber";
+        const statusText = statusActive ? "Active" : "Paused";
         const explorerUrl = `${ARC_TESTNET.explorer}/address/${addr}`;
+        const perTxFmt = fmtUsdc(info.perTxLimit);
+        const dailyLimitFmt = fmtUsdc(info.dailyLimit);
+        const remainingFmt = fmtUsdc(remaining);
+
+        // Color the progress bar by % used
+        const barColor =
+          pct < 50 ? "from-emerald-500 to-emerald-400" :
+          pct < 80 ? "from-amber-500 to-amber-400" :
+          "from-red-500 to-red-400";
 
         return `
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <div class="flex items-start justify-between mb-3">
-              <div>
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="mono text-sm" title="${addr}">${shortAddr(addr)}</span>
-                  ${isSelf ? '<span class="text-xs bg-blue-900/50 text-blue-300 px-1.5 py-0.5 rounded">self</span>' : ""}
-                  <a href="${explorerUrl}" target="_blank" class="text-xs text-slate-500 hover:text-blue-400">↗</a>
+          <div class="bg-gradient-to-br from-slate-900 to-slate-900/40 border border-slate-800 rounded-2xl p-5 hover:border-slate-700 transition-colors">
+            <!-- Header -->
+            <div class="flex items-start justify-between gap-3 mb-4">
+              <div class="flex items-start gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center text-xl shrink-0">
+                  🤖
                 </div>
-                <p class="text-xs text-slate-500 mt-1">
-                  ${info.paymentCount.toString()} payments · ${fmtUsdc(info.totalSpent)} USDC total
-                </p>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-semibold text-slate-100" id="label-${addr}">
+                      ${getAgentLabel(addr) || "Agent"}
+                    </span>
+                    <button
+                      data-agent="${addr}"
+                      class="rename-btn text-[11px] text-slate-500 hover:text-blue-400 transition"
+                      title="Rename this agent (saved locally in your browser)"
+                    >✏️</button>
+                    ${isSelf ? '<span class="text-[10px] uppercase tracking-wider bg-blue-900/60 text-blue-200 px-2 py-0.5 rounded-full">self-demo</span>' : ""}
+                  </div>
+                  <div class="flex items-center gap-1 text-xs text-slate-400 mt-0.5">
+                    <span class="mono" title="${addr}">${shortAddr(addr)}</span>
+                    <a href="${explorerUrl}" target="_blank" class="hover:text-blue-400">↗</a>
+                  </div>
+                </div>
               </div>
-              <span class="text-xs text-${statusColor}-400 bg-${statusColor}-900/30 px-2 py-1 rounded">
+              <span class="text-xs text-${statusColor}-300 bg-${statusColor}-900/40 border border-${statusColor}-700/30 px-2.5 py-1 rounded-full shrink-0">
                 ● ${statusText}
               </span>
             </div>
 
-            <div class="mb-3">
-              <div class="flex items-center justify-between text-xs mb-1">
-                <span class="text-slate-400">Daily spend</span>
-                <span class="text-slate-300">
-                  ${fmtUsdc(info.dailySpent)} / ${fmtUsdc(info.dailyLimit)} USDC
-                </span>
+            <!-- Today's budget — the centerpiece -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-4">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] uppercase tracking-wider text-slate-500">Today's spend</span>
+                <span class="text-[10px] uppercase tracking-wider text-slate-500">Resets 00:00 UTC</span>
               </div>
-              <div class="h-1.5 bg-slate-800 rounded overflow-hidden">
-                <div
-                  class="h-full bg-blue-500 transition-all"
-                  style="width: ${pct}%"
-                ></div>
+              <div class="flex items-baseline gap-2 mb-2">
+                <span class="text-3xl font-bold text-slate-100">${fmtUsdc(info.dailySpent)}</span>
+                <span class="text-sm text-slate-500">/ ${dailyLimitFmt} USDC</span>
+                <span class="ml-auto text-xs text-slate-400">${pct}% used</span>
               </div>
-              <p class="text-xs text-slate-500 mt-1">
-                Remaining today: ${fmtUsdc(remaining)} USDC · Per-tx max: ${fmtUsdc(info.perTxLimit)} USDC
-              </p>
+              <div class="h-2 bg-slate-800 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r ${barColor} transition-all" style="width: ${pct}%"></div>
+              </div>
+              <div class="grid grid-cols-2 gap-2 mt-3 text-xs">
+                <div class="bg-slate-900 rounded-lg px-3 py-2">
+                  <div class="text-slate-500 text-[10px] uppercase tracking-wider">Remaining today</div>
+                  <div class="text-emerald-400 font-semibold mt-0.5">${remainingFmt} USDC</div>
+                </div>
+                <div class="bg-slate-900 rounded-lg px-3 py-2">
+                  <div class="text-slate-500 text-[10px] uppercase tracking-wider">Per-tx max</div>
+                  <div class="text-blue-400 font-semibold mt-0.5">${perTxFmt} USDC</div>
+                </div>
+              </div>
             </div>
 
-            <div class="flex gap-2">
-              <button
-                id="pauseBtn-${addr}"
-                class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sm rounded transition"
-              >
-                ${info.active ? "Pause" : "Unpause"}
+            <!-- Rules summary -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-4">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] uppercase tracking-wider text-violet-400 font-semibold">⚡ On-chain rules</span>
+                <span class="text-[10px] text-slate-500">enforced by contract</span>
+              </div>
+              <ul class="text-xs text-slate-300 space-y-1.5">
+                <li class="flex items-center gap-2">
+                  <span class="text-emerald-400">✓</span>
+                  Max <strong class="text-slate-100">${dailyLimitFmt} USDC</strong> total per UTC day
+                </li>
+                <li class="flex items-center gap-2">
+                  <span class="text-emerald-400">✓</span>
+                  Max <strong class="text-slate-100">${perTxFmt} USDC</strong> per single call
+                </li>
+                <li class="flex items-center gap-2">
+                  <span class="text-emerald-400">✓</span>
+                  Only pays addresses on the allowlist
+                </li>
+                <li class="flex items-center gap-2">
+                  <span class="text-emerald-400">✓</span>
+                  Owner (<span class="mono text-slate-400">${shortAddr(info.owner)}</span>) can pause / revoke anytime
+                </li>
+              </ul>
+            </div>
+
+            <!-- Allowed services -->
+            <div class="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-4">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-[10px] uppercase tracking-wider text-emerald-400 font-semibold">🛂 Allowed services</span>
+                <button data-agent="${addr}" class="add-service-btn text-xs text-blue-400 hover:underline">+ Add</button>
+              </div>
+              <div id="services-${addr}" class="space-y-1">
+                <p class="text-xs text-slate-500 italic">Loading…</p>
+              </div>
+            </div>
+
+            <!-- Lifetime stats -->
+            <div class="grid grid-cols-2 gap-2 mb-4 text-center">
+              <div class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2">
+                <div class="text-2xl font-bold text-slate-100">${info.paymentCount.toString()}</div>
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Lifetime payments</div>
+              </div>
+              <div class="bg-slate-950 border border-slate-800 rounded-lg px-3 py-2">
+                <div class="text-2xl font-bold text-slate-100">${fmtUsdc(info.totalSpent)}</div>
+                <div class="text-[10px] uppercase tracking-wider text-slate-500">Lifetime USDC</div>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-2 flex-wrap">
+              ${
+                isSelf
+                  ? `<button data-agent="${addr}" class="send-pay-btn flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-lg transition">
+                       Send payment
+                     </button>`
+                  : ""
+              }
+              <button id="pauseBtn-${addr}" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-sm rounded-lg transition">
+                ${statusActive ? "⏸ Pause" : "▶ Unpause"}
               </button>
-              <a
-                href="${explorerUrl}"
-                target="_blank"
-                class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-sm rounded transition"
-              >
-                View on arcscan
+              <a href="${explorerUrl}" target="_blank" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-sm rounded-lg transition">
+                Arcscan ↗
               </a>
             </div>
           </div>
         `;
       }
 
-      // ─── Pause / unpause ────────────────────────────────────────────────
       async function togglePause(addr, isActive) {
+        const title = isActive ? "Pause this agent?" : "Unpause this agent?";
+        const body = isActive
+          ? `Agent: ${addr}\n\n` +
+            `It won't be able to call agentPay() until you unpause it.\n` +
+            `Owner controls remain intact — you can resume anytime.`
+          : `Agent: ${addr}\n\n` +
+            `It will be able to spend again, up to its daily/per-tx limits\n` +
+            `and only to whitelisted services.`;
+        const ok = await showConfirm({
+          title,
+          body,
+          okText: isActive ? "Pause" : "Unpause",
+          danger: isActive,
+        });
+        if (!ok) return;
         try {
-          const tx = isActive
-            ? await contract.pauseAgent(addr)
-            : await contract.unpauseAgent(addr);
+          const tx = isActive ? await contract.pauseAgent(addr) : await contract.unpauseAgent(addr);
           await tx.wait();
           await loadAgents();
           await loadActivity();
@@ -661,13 +2102,10 @@
         }
       }
 
-      // ─── Activity log (last ~PaymentExecuted events) ─────────────────────
-      // Arc Testnet RPC sometimes refuses very large block ranges. We chunk
-      // the query and walk backwards from the latest block. Stops as soon as
-      // we have enough events or we've reached the AgentPay deploy block.
-      const DEPLOY_BLOCK_HINT = 42600000; // a bit before the first AgentPay tx
+      // ─── Activity log (chunked event query) ──────────────────────────────
+      const DEPLOY_BLOCK_HINT = 42600000;
       const CHUNK_SIZE = 10000;
-      const MAX_CHUNKS = 200; // hard cap so we never spin forever
+      const MAX_CHUNKS = 200;
       const TARGET_EVENT_COUNT = 20;
 
       async function loadActivity() {
@@ -685,8 +2123,6 @@
           const latestBlock = await provider.getBlockNumber();
           const earliest = DEPLOY_BLOCK_HINT;
 
-          // Walk backwards from latest block, chunk by chunk, until we have
-          // enough events or hit the deploy block (or MAX_CHUNKS).
           let collected = [];
           let to = latestBlock;
           let chunksProcessed = 0;
@@ -694,9 +2130,8 @@
             const from = Math.max(earliest, to - CHUNK_SIZE + 1);
             try {
               const chunk = await contract.queryFilter(filter, from, to);
-              if (chunk.length > 0) collected = chunk.concat(collected); // keep chronological order
+              if (chunk.length > 0) collected = chunk.concat(collected);
             } catch (chunkErr) {
-              // Skip a problematic range, keep walking back
               console.warn(`Skipping blocks ${from}-${to}:`, chunkErr.shortMessage || chunkErr.message);
             }
             chunksProcessed += 1;
@@ -705,14 +2140,12 @@
           }
 
           $("activityCount").textContent = `(${collected.length})`;
-
           if (collected.length === 0) {
             $("activityList").innerHTML = "";
             show("activityEmpty");
             return;
           }
 
-          // Show newest first
           const html = collected
             .slice()
             .reverse()
@@ -734,25 +2167,22 @@
                   </div>
                   <div class="text-right shrink-0">
                     <p class="text-xs text-slate-500">${timeAgo(timestamp)}</p>
-                    <a
-                      href="${txUrl}"
-                      target="_blank"
-                      class="text-xs text-blue-400 hover:underline mono"
-                    >${ev.transactionHash.slice(0, 10)}…</a>
+                    <a href="${txUrl}" target="_blank" class="text-xs text-blue-400 hover:underline mono">
+                      ${ev.transactionHash.slice(0, 10)}…
+                    </a>
                   </div>
                 </div>
               `;
             })
             .join("");
-
           $("activityList").innerHTML = html;
         } catch (e) {
           console.error("loadActivity failed", e);
           $("activityList").innerHTML = `
             <div class="bg-slate-900 border border-slate-800 rounded-lg p-4 text-sm text-slate-400">
-              Couldn't load on-chain activity right now. The Arc Testnet RPC may be rate-limiting historical
-              event queries — try refreshing in a few seconds, or
-              <a href="${ARC_TESTNET.explorer}/address/${AGENTPAY_ADDRESS}#tokentxns" target="_blank" class="text-blue-400 hover:underline">view the contract on arcscan</a>.
+              Couldn't load on-chain activity right now. The Arc Testnet RPC may be rate-limiting
+              historical event queries — try refreshing in a few seconds, or
+              <a href="${ARC_TESTNET.explorer}/address/${AGENTPAY_ADDRESS}" target="_blank" class="text-blue-400 hover:underline">view the contract on arcscan</a>.
             </div>`;
         }
       }
@@ -760,6 +2190,7 @@
       // ─── Create agent flow ───────────────────────────────────────────────
       function openCreateModal() {
         $("createError").classList.add("hidden");
+        $("formAgentName").value = "";
         $("formAgentAddr").value = "";
         $("formDailyLimit").value = "0.1";
         $("formPerTxLimit").value = "0.02";
@@ -769,39 +2200,53 @@
         hide("createModal");
       }
       function useMyWallet() {
-        $("formAgentAddr").value = userAddr;
+        if (userAddr) $("formAgentAddr").value = userAddr;
       }
 
       async function handleCreateAgent(ev) {
         ev.preventDefault();
         $("createError").classList.add("hidden");
-
+        const agentName = $("formAgentName").value.trim();
         const agentAddr = $("formAgentAddr").value.trim();
         const dailyStr = $("formDailyLimit").value.trim();
         const perTxStr = $("formPerTxLimit").value.trim();
-
         try {
-          if (!ethers.isAddress(agentAddr)) {
-            throw new Error("Agent address is not a valid Ethereum address.");
-          }
+          if (!ethers.isAddress(agentAddr)) throw new Error("Agent address is not valid.");
           const dailyLimit = ethers.parseUnits(dailyStr, 18);
           const perTxLimit = ethers.parseUnits(perTxStr, 18);
-          if (perTxLimit > dailyLimit) {
-            throw new Error("Per-tx limit must be ≤ daily limit.");
-          }
+          if (perTxLimit > dailyLimit) throw new Error("Per-tx limit must be ≤ daily limit.");
+
+          // Confirm before signing
+          const summary =
+            `Function: registerAgent(agent, dailyLimit, perTxLimit)\n` +
+            `Contract: ${AGENTPAY_ADDRESS}\n` +
+            `Gas est:  ~$0.001 USDC\n\n` +
+            `Agent:    ${agentAddr}\n` +
+            `Daily:    ${dailyStr} USDC\n` +
+            `Per-tx:   ${perTxStr} USDC\n` +
+            (agentName ? `Nickname: "${agentName}" (saved locally)\n\n` : `\n`) +
+            `Effect: stores the agent + limits on-chain.\n` +
+            `You'll be the owner.`;
+          const ok = await showConfirm({
+            title: "Register agent on Arc Testnet?",
+            body: summary,
+            okText: "Register",
+          });
+          if (!ok) return;
 
           $("submitCreateBtn").disabled = true;
           $("submitCreateBtn").textContent = "Submitting…";
-
           const tx = await contract.registerAgent(agentAddr, dailyLimit, perTxLimit);
           $("submitCreateBtn").textContent = "Waiting for confirmation…";
           await tx.wait();
-
+          // Save nickname locally (if any)
+          if (agentName) {
+            setAgentLabel(agentAddr, agentName);
+          }
           closeCreateModal();
           await loadAgents();
         } catch (e) {
-          $("createError").textContent =
-            e.shortMessage || e.reason || e.message || "Unknown error";
+          $("createError").textContent = e.shortMessage || e.reason || e.message || "Unknown error";
           $("createError").classList.remove("hidden");
         } finally {
           $("submitCreateBtn").disabled = false;
@@ -809,17 +2254,79 @@
         }
       }
 
+      // ─── Nav links: scroll to section, switch to landing if needed ──────
+      function navToSection(sectionId) {
+        // If currently on dashboard view, switch to landing first
+        const onDashboard = !$("dashboardView").classList.contains("hidden");
+        if (onDashboard && userAddr) {
+          hide("dashboardView");
+          show("landingView");
+          show("dashboardBtn"); // show "← Dashboard" button to go back
+        }
+        // Wait a tick for layout, then scroll
+        requestAnimationFrame(() => {
+          const el = document.getElementById(sectionId);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+      }
+
+      function backToDashboard() {
+        if (!userAddr) return;
+        hide("landingView");
+        show("dashboardView");
+        hide("dashboardBtn");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      // Wire all nav links
+      document.querySelectorAll(".nav-link").forEach((link) => {
+        link.addEventListener("click", (ev) => {
+          ev.preventDefault();
+          const section = link.getAttribute("data-section");
+          if (section) navToSection(section);
+        });
+      });
+
       // ─── Event wiring ────────────────────────────────────────────────────
       $("connectBtn").addEventListener("click", handleHeaderBtnClick);
+      $("heroConnectBtn").addEventListener("click", handleHeaderBtnClick);
+      $("ctaConnectBtn").addEventListener("click", handleHeaderBtnClick);
+      $("dashboardBtn").addEventListener("click", backToDashboard);
       $("switchNetworkBtn").addEventListener("click", switchNetwork);
       $("createAgentBtn").addEventListener("click", openCreateModal);
       $("closeCreateBtn").addEventListener("click", closeCreateModal);
       $("useMyWalletBtn").addEventListener("click", useMyWallet);
       $("createAgentForm").addEventListener("submit", handleCreateAgent);
       $("closeWalletPickerBtn").addEventListener("click", closeWalletPicker);
+      // Send Payment modal
+      $("closeSendBtn").addEventListener("click", closeSendModal);
+      $("checkCanPayBtn").addEventListener("click", handleCheckCanPay);
+      $("sendPaymentForm").addEventListener("submit", handleSendPayment);
+      // Add Service modal
+      $("closeServiceBtn").addEventListener("click", closeAddServiceModal);
+      $("useMyWalletAsService").addEventListener("click", useMyWalletAsService);
+      $("clearServicesBtn").addEventListener("click", clearServices);
+      $("addDemoServicesBtn").addEventListener("click", appendDemoServices);
+      $("addServiceForm").addEventListener("submit", handleAddService);
+      // Rename Modal
+      $("closeRenameBtn").addEventListener("click", closeRenameModal);
+      $("renameCancelBtn").addEventListener("click", closeRenameModal);
+      $("renameForm").addEventListener("submit", handleRenameSubmit);
+      // Generic Confirm Modal
+      $("confirmOkBtn").addEventListener("click", () => resolveConfirm(true));
+      $("confirmCancelBtn").addEventListener("click", () => resolveConfirm(false));
+      $("confirmCloseBtn").addEventListener("click", () => resolveConfirm(false));
+      // ESC closes the confirm modal as cancel
+      document.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape") {
+          if (!$("confirmModal").classList.contains("hidden")) resolveConfirm(false);
+          if (!$("renameModal").classList.contains("hidden")) closeRenameModal();
+        }
+      });
 
-      // Start listening for EIP-6963 wallet announcements as early as possible
       listenForWallets();
+      loadLiveStats();
+      tryAutoReconnect();
     </script>
   </body>
 </html>
