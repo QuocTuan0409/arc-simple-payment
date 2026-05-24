@@ -75,7 +75,11 @@ export default async function handler(req, res) {
   }
   contents.push({ role: "user", parts: [{ text: userMessage }] });
 
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+  // Use gemini-1.5-flash — stable, FREE tier (1500 RPD, 15 RPM).
+  // Other free options: gemini-2.0-flash-exp (experimental), gemini-1.5-flash-8b (smaller/faster).
+  // gemini-2.0-flash (without -exp) requires paid billing — DO NOT use on free tier.
+  const MODEL = "gemini-1.5-flash";
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
 
   try {
     const aiRes = await fetch(geminiUrl, {
@@ -99,8 +103,13 @@ export default async function handler(req, res) {
     if (!aiRes.ok) {
       const errText = await aiRes.text();
       console.error("Gemini API error:", aiRes.status, errText);
+      // Friendlier messages for common errors
+      let userMsg = `Gemini API returned ${aiRes.status}`;
+      if (aiRes.status === 429) userMsg = "Rate limit reached (15 req/min on free tier). Wait a minute and try again.";
+      if (aiRes.status === 403) userMsg = "Gemini API key is invalid or doesn't have access to this model.";
+      if (aiRes.status === 400) userMsg = "Bad request — possibly content blocked by safety filters.";
       return res.status(502).json({
-        error: `Gemini API returned ${aiRes.status}`,
+        error: userMsg,
         detail: errText.slice(0, 300),
       });
     }
@@ -112,7 +121,7 @@ export default async function handler(req, res) {
 
     return res.status(200).json({
       reply,
-      model: "gemini-2.0-flash",
+      model: MODEL,
       finishReason: data?.candidates?.[0]?.finishReason || null,
     });
   } catch (err) {
