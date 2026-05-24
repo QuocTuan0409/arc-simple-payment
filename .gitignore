@@ -1,8 +1,12 @@
 node_modules/
 .env
 .env.local
+.env.*.local
 agent/.env
 agent/.env.local
+frontend/.env
+frontend/.env.local
+frontend/.vercel/
 
 # Hardhat
 artifacts/
