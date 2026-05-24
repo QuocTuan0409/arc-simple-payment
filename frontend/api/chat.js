@@ -75,60 +75,86 @@ export default async function handler(req, res) {
   }
   contents.push({ role: "user", parts: [{ text: userMessage }] });
 
-  // Use gemini-1.5-flash — stable, FREE tier (1500 RPD, 15 RPM).
-  // Other free options: gemini-2.0-flash-exp (experimental), gemini-1.5-flash-8b (smaller/faster).
-  // gemini-2.0-flash (without -exp) requires paid billing — DO NOT use on free tier.
-  const MODEL = "gemini-1.5-flash";
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
+  // Free-tier model fallback list — tries in order until one works.
+  // Different Google accounts/projects have access to different free models.
+  // gemini-2.0-flash-exp is experimental free; gemini-1.5-flash-latest is stable alias.
+  const FREE_MODELS = [
+    "gemini-2.0-flash-exp",
+    "gemini-1.5-flash-latest",
+    "gemini-1.5-flash",
+    "gemini-1.5-flash-002",
+    "gemini-1.5-flash-8b",
+  ];
 
-  try {
-    const aiRes = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 600,
-          topP: 0.95,
-        },
-        safetySettings: [
-          { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
-          { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
-        ],
-      }),
-    });
+  // Try each model until one responds — caches the working model URL.
+  const tryModel = (model) =>
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    if (!aiRes.ok) {
-      const errText = await aiRes.text();
-      console.error("Gemini API error:", aiRes.status, errText);
-      // Friendlier messages for common errors
-      let userMsg = `Gemini API returned ${aiRes.status}`;
-      if (aiRes.status === 429) userMsg = "Rate limit reached (15 req/min on free tier). Wait a minute and try again.";
-      if (aiRes.status === 403) userMsg = "Gemini API key is invalid or doesn't have access to this model.";
-      if (aiRes.status === 400) userMsg = "Bad request — possibly content blocked by safety filters.";
-      return res.status(502).json({
-        error: userMsg,
-        detail: errText.slice(0, 300),
+  const requestBody = JSON.stringify({
+    systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    contents,
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: 600,
+      topP: 0.95,
+    },
+    safetySettings: [
+      { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_ONLY_HIGH" },
+      { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_ONLY_HIGH" },
+    ],
+  });
+
+  // Try each model in order; first one that doesn't 404 wins.
+  let lastStatus = 0;
+  let lastErrText = "";
+  let lastModel = "";
+
+  for (const model of FREE_MODELS) {
+    lastModel = model;
+    try {
+      const aiRes = await fetch(tryModel(model), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: requestBody,
       });
+
+      if (aiRes.ok) {
+        const data = await aiRes.json();
+        const reply =
+          data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
+          "I'm not sure how to answer that. Try a more specific question about Arc, USDC, AgentPay, or the available chat commands.";
+        return res.status(200).json({
+          reply,
+          model,
+          finishReason: data?.candidates?.[0]?.finishReason || null,
+        });
+      }
+
+      lastStatus = aiRes.status;
+      lastErrText = await aiRes.text();
+      console.warn(`Gemini model ${model} returned ${aiRes.status}:`, lastErrText.slice(0, 200));
+
+      // If 404 (model not found) → try next model.
+      // If 429 (rate limit) or 5xx → also try next (might be model-specific).
+      // If 403 (auth) or 400 (bad request) → key/request issue, don't keep retrying.
+      if (aiRes.status === 403 || aiRes.status === 400) break;
+    } catch (err) {
+      console.error(`Network error trying ${model}:`, err.message);
+      lastErrText = err.message;
     }
-
-    const data = await aiRes.json();
-    const reply =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-      "I'm not sure how to answer that. Try a more specific question about Arc, USDC, AgentPay, or the available chat commands.";
-
-    return res.status(200).json({
-      reply,
-      model: MODEL,
-      finishReason: data?.candidates?.[0]?.finishReason || null,
-    });
-  } catch (err) {
-    console.error("Chat handler error:", err);
-    return res.status(500).json({
-      error: "Failed to reach Gemini API",
-      detail: String(err?.message || err).slice(0, 300),
-    });
   }
+
+  // All models failed — return last error
+  let userMsg = `All Gemini models failed (last: ${lastModel} → ${lastStatus})`;
+  if (lastStatus === 429) userMsg = "Rate limit reached. Wait a minute and try again.";
+  if (lastStatus === 403) userMsg = "Gemini API key is invalid or restricted. Re-generate the key at aistudio.google.com.";
+  if (lastStatus === 400) userMsg = "Bad request — content may be blocked by safety filters.";
+  if (lastStatus === 404) userMsg = "No free Gemini model is accessible. Enable the Generative Language API in Google Cloud Console for your project.";
+
+  return res.status(502).json({
+    error: userMsg,
+    triedModels: FREE_MODELS,
+    lastStatus,
+    detail: lastErrText.slice(0, 300),
+  });
 }

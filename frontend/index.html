@@ -19,26 +19,67 @@
         }
       } catch (_) {}
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
     <style>
-      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
-      .mono { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
-      .gradient-text {
-        background: linear-gradient(90deg, #60a5fa 0%, #34d399 100%);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
+      :root {
+        /* Arc-inspired palette */
+        --arc-bg: #0a0f1c;
+        --arc-bg-elevated: #111521;
+        --arc-bg-hover: #161a2a;
+        --arc-border: rgba(255, 255, 255, 0.06);
+        --arc-border-hover: rgba(255, 255, 255, 0.12);
+        --arc-text: #f5f5f5;
+        --arc-text-muted: #9ca3af;
+        --arc-text-dim: #6b7280;
+        --arc-accent: #ffffff;
+        --arc-blue: #6b9eff;
       }
-      .fade-in { animation: fadeIn 0.3s ease-out; }
+      html, body { background: var(--arc-bg); }
+      body {
+        font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: var(--arc-text);
+        font-feature-settings: "cv11", "ss01", "ss03";
+        letter-spacing: -0.01em;
+      }
+      .mono { font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace; }
+
+      /* Use Arc palette via utility classes */
+      .bg-arc { background: var(--arc-bg); }
+      .bg-arc-elev { background: var(--arc-bg-elevated); }
+      .border-arc { border-color: var(--arc-border); }
+      .text-arc-muted { color: var(--arc-text-muted); }
+      .text-arc-dim { color: var(--arc-text-dim); }
+
+      /* Override slate-950 backgrounds throughout */
+      .bg-slate-950 { background: var(--arc-bg) !important; }
+      .bg-slate-900 { background: var(--arc-bg-elevated) !important; }
+      .border-slate-800 { border-color: var(--arc-border) !important; }
+      .border-slate-700 { border-color: var(--arc-border-hover) !important; }
+      .text-slate-100 { color: var(--arc-text) !important; }
+      .text-slate-200 { color: var(--arc-text) !important; }
+      .text-slate-300 { color: #d4d4d8 !important; }
+      .text-slate-400 { color: var(--arc-text-muted) !important; }
+      .text-slate-500 { color: var(--arc-text-dim) !important; }
+
+      .gradient-text {
+        color: var(--arc-text);
+        font-weight: 700;
+        letter-spacing: -0.025em;
+      }
+
+      .fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1); }
       @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(8px); }
+        from { opacity: 0; transform: translateY(6px); }
         to { opacity: 1; transform: translateY(0); }
       }
       .typing-dot {
         display: inline-block;
-        width: 6px;
-        height: 6px;
+        width: 5px;
+        height: 5px;
         margin: 0 2px;
-        background: #94a3b8;
+        background: var(--arc-text-muted);
         border-radius: 50%;
         animation: typing 1.2s infinite;
       }
@@ -46,43 +87,89 @@
       .typing-dot:nth-child(3) { animation-delay: 0.3s; }
       @keyframes typing {
         0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
-        30% { opacity: 1; transform: translateY(-4px); }
+        30% { opacity: 1; transform: translateY(-3px); }
       }
-      /* Chat container scroll */
+
+      /* Custom scrollbar */
       #messages {
         scrollbar-width: thin;
-        scrollbar-color: #475569 transparent;
+        scrollbar-color: rgba(255,255,255,0.08) transparent;
       }
       #messages::-webkit-scrollbar { width: 6px; }
-      #messages::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+      #messages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+      #messages::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
+
+      /* Hide horizontal scrollbar on quick chips (still scrollable) */
+      #quickActions::-webkit-scrollbar { display: none; }
+
       /* Hide disconnected view + show reconnecting view if we're auto-reconnecting */
       html[data-reconnecting="1"] #disconnectedView { display: none !important; }
       html[data-reconnecting="1"] #reconnectingView { display: flex !important; }
+
+      /* Card hover */
+      .arc-card {
+        background: var(--arc-bg-elevated);
+        border: 1px solid var(--arc-border);
+        border-radius: 12px;
+        transition: all 0.2s ease;
+      }
+      .arc-card:hover {
+        background: var(--arc-bg-hover);
+        border-color: var(--arc-border-hover);
+      }
+      .arc-chip {
+        background: transparent;
+        border: 1px solid var(--arc-border);
+        border-radius: 999px;
+        transition: all 0.15s ease;
+      }
+      .arc-chip:hover {
+        background: var(--arc-bg-elevated);
+        border-color: var(--arc-border-hover);
+      }
+      .arc-btn {
+        background: var(--arc-text);
+        color: var(--arc-bg);
+        font-weight: 600;
+        border-radius: 8px;
+        transition: opacity 0.15s ease;
+      }
+      .arc-btn:hover { opacity: 0.9; }
+
+      /* Subtle inner glow on hero */
+      .hero-glow::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(107, 158, 255, 0.08), transparent 70%);
+        pointer-events: none;
+      }
     </style>
   </head>
-  <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+  <body class="bg-arc text-slate-100 min-h-screen flex flex-col">
     <!-- ═══════════════════════════════════════════════════════════ -->
     <!-- Header                                                        -->
     <!-- ═══════════════════════════════════════════════════════════ -->
-    <header class="border-b border-slate-800 bg-slate-950/80 backdrop-blur shrink-0">
-      <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-        <a href="/" class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-emerald-500 flex items-center justify-center font-bold text-white text-sm">
-            ⚡
+    <header class="border-b border-arc bg-arc/80 backdrop-blur-xl sticky top-0 z-40 shrink-0">
+      <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <a href="/" class="flex items-center gap-3 group">
+          <div class="w-7 h-7 rounded-md bg-white flex items-center justify-center font-bold text-[#0a0f1c] text-[11px] tracking-tight">
+            AP
           </div>
-          <div>
-            <div class="font-bold text-base"><span class="gradient-text">AgentPay</span> Assistant</div>
-            <div class="text-[10px] text-slate-500 -mt-0.5">on Arc Testnet</div>
+          <div class="flex items-baseline gap-2">
+            <span class="font-semibold text-base text-white tracking-tight">AgentPay</span>
+            <span class="text-xs text-arc-dim border-l border-arc pl-2">on Arc Testnet</span>
           </div>
         </a>
+        <nav class="hidden md:flex items-center gap-1">
+          <a href="/" class="px-3 py-1.5 text-sm text-white hover:bg-arc-elev rounded-md transition">Assistant</a>
+          <a href="dashboard.html" class="px-3 py-1.5 text-sm text-arc-muted hover:text-white hover:bg-arc-elev rounded-md transition">Dashboard</a>
+          <a href="https://github.com/QuocTuan0409/arc-simple-payment" target="_blank" rel="noreferrer" class="px-3 py-1.5 text-sm text-arc-muted hover:text-white hover:bg-arc-elev rounded-md transition">GitHub ↗</a>
+        </nav>
         <div class="flex items-center gap-2">
-          <a
-            href="dashboard.html"
-            class="hidden sm:inline-flex px-3 py-2 text-slate-400 hover:text-slate-100 text-sm transition"
-          >📊 Dashboard</a>
           <button
             id="connectBtn"
-            class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-lg transition text-sm"
+            class="px-4 py-2 text-sm font-medium bg-white text-[#0a0f1c] hover:opacity-90 rounded-lg transition"
           >
             Connect Wallet
           </button>
@@ -111,68 +198,107 @@
     <!-- ═══════════════════════════════════════════════════════════ -->
     <main id="reconnectingView" style="display: none" class="flex-1 items-center justify-center px-4 py-8">
       <div class="text-center">
-        <div class="inline-block w-10 h-10 border-3 border-slate-700 border-t-blue-500 rounded-full animate-spin mb-4"></div>
-        <p class="text-slate-400 text-sm">Reconnecting to your wallet…</p>
+        <div class="inline-block w-8 h-8 border-2 rounded-full animate-spin mb-4" style="border-color: var(--arc-border); border-top-color: #ffffff;"></div>
+        <p class="text-arc-muted text-sm">Reconnecting to your wallet…</p>
       </div>
     </main>
 
     <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- Disconnected: prompt to connect                              -->
+    <!-- Disconnected: Arc-style hero with feature grid               -->
     <!-- ═══════════════════════════════════════════════════════════ -->
-    <main id="disconnectedView" class="flex-1 flex items-center justify-center px-4 py-8">
-      <div class="max-w-2xl w-full">
-        <div class="text-center mb-8">
-          <div class="text-6xl mb-4">💬</div>
-          <h1 class="text-3xl md:text-4xl font-bold mb-3">
-            <span class="gradient-text">Talk to your wallet.</span>
+    <main id="disconnectedView" class="flex-1 relative hero-glow overflow-hidden">
+      <div class="max-w-6xl mx-auto px-6 py-20 md:py-28">
+        <!-- Hero -->
+        <div class="text-center mb-16">
+          <div class="inline-flex items-center gap-2 px-3 py-1 mb-6 text-xs text-arc-muted bg-arc-elev border border-arc rounded-full">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+            Live on Arc Testnet
+          </div>
+          <h1 class="text-5xl md:text-7xl font-extrabold tracking-tight mb-5 leading-[1.05]">
+            Talk to your wallet.
           </h1>
-          <p class="text-slate-400 max-w-lg mx-auto">
-            Chat with an AI assistant that helps you send USDC, manage budgets,
-            and research on Arc Testnet — every action enforced on-chain.
+          <p class="text-lg md:text-xl text-arc-muted max-w-2xl mx-auto leading-relaxed">
+            An AI assistant for autonomous USDC payments on Arc — every action
+            enforced by on-chain spending controls.
           </p>
-        </div>
 
-        <!-- What you can do -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <div class="text-xl mb-1">💸</div>
-            <div class="font-medium text-sm mb-1">Send USDC</div>
-            <div class="text-xs text-slate-500">"Send 0.01 USDC to 0x81bC…"</div>
-          </div>
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <div class="text-xl mb-1">💰</div>
-            <div class="font-medium text-sm mb-1">Check your budget</div>
-            <div class="text-xs text-slate-500">"Show my budget" / "How much is left today?"</div>
-          </div>
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <div class="text-xl mb-1">✅</div>
-            <div class="font-medium text-sm mb-1">Whitelist a service</div>
-            <div class="text-xs text-slate-500">"Allow 0xabc…" to add to allowlist</div>
-          </div>
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <div class="text-xl mb-1">🌉</div>
-            <div class="font-medium text-sm mb-1">Learn Web3</div>
-            <div class="text-xs text-slate-500">"Explain bridging" / "Swap ETH to USDC"</div>
-          </div>
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <div class="text-xl mb-1">🔍</div>
-            <div class="font-medium text-sm mb-1">Research on Arc</div>
-            <div class="text-xs text-slate-500">"Research DeFi protocols on Arc"</div>
-          </div>
-          <div class="bg-slate-900 border border-slate-800 rounded-xl p-4">
-            <div class="text-xl mb-1">🛡️</div>
-            <div class="font-medium text-sm mb-1">On-chain safety</div>
-            <div class="text-xs text-slate-500">Daily limit, per-tx cap & pause enforced by contract</div>
+          <!-- Primary CTA — search-bar style -->
+          <div class="mt-10 max-w-xl mx-auto">
+            <button
+              id="heroConnectBtn"
+              class="w-full group flex items-center justify-between gap-3 px-5 py-4 bg-arc-elev border border-arc hover:border-arc-hover rounded-2xl transition text-left"
+              style="border-color: var(--arc-border)"
+            >
+              <span class="flex items-center gap-3 text-arc-muted">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <span class="text-base">Connect wallet to start chatting…</span>
+              </span>
+              <span class="hidden sm:inline-flex items-center gap-1 px-2 py-1 text-[11px] text-arc-dim border border-arc rounded">
+                Connect ↗
+              </span>
+            </button>
+            <p class="mt-3 text-xs text-arc-dim">
+              Already set up? Visit the <a href="dashboard.html" class="text-white hover:underline">dashboard</a> for advanced controls.
+            </p>
           </div>
         </div>
 
-        <div class="text-center">
-          <button
-            id="heroConnectBtn"
-            class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition"
-          >
-            Connect Wallet to Start
-          </button>
+        <!-- Feature grid — Arc-style cards -->
+        <div class="mb-6">
+          <div class="text-xs uppercase tracking-wider text-arc-dim mb-4 font-medium">Use cases</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div class="arc-card p-5">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="text-white mb-3"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 1 0 0 7h5a3.5 3.5 0 1 1 0 7H6"/></svg>
+              <div class="font-semibold text-[15px] mb-1.5">Send USDC</div>
+              <div class="text-sm text-arc-muted leading-relaxed">"Send 0.01 USDC to 0x81bC…" — within your daily limit, signed by you.</div>
+            </div>
+            <div class="arc-card p-5">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="text-white mb-3"><path d="M12 22V2M5 12h14"/><circle cx="12" cy="12" r="10"/></svg>
+              <div class="font-semibold text-[15px] mb-1.5">Track your budget</div>
+              <div class="text-sm text-arc-muted leading-relaxed">"Show my budget" — live spent vs. daily limit, remaining cap, lifetime stats.</div>
+            </div>
+            <div class="arc-card p-5">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="text-white mb-3"><path d="M20 6 9 17l-5-5"/></svg>
+              <div class="font-semibold text-[15px] mb-1.5">Whitelist services</div>
+              <div class="text-sm text-arc-muted leading-relaxed">"Whitelist 0xabc…" — your agent can only pay addresses you approve.</div>
+            </div>
+            <div class="arc-card p-5">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="text-white mb-3"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <div class="font-semibold text-[15px] mb-1.5">On-chain safety</div>
+              <div class="text-sm text-arc-muted leading-relaxed">Daily limit, per-tx cap, pause/unpause — all enforced by the contract, not the app.</div>
+            </div>
+            <div class="arc-card p-5">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="text-white mb-3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <div class="font-semibold text-[15px] mb-1.5">Research on Arc</div>
+              <div class="text-sm text-arc-muted leading-relaxed">Ask about DeFi, bridging, agentic economy — AI answers in any language.</div>
+            </div>
+            <div class="arc-card p-5">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="text-white mb-3"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+              <div class="font-semibold text-[15px] mb-1.5">AI agents, your rules</div>
+              <div class="text-sm text-arc-muted leading-relaxed">Built for Track 4 (Agentic Economy) — autonomous AI agents with hard guardrails.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- footer link row -->
+        <div class="mt-12 pt-6 border-t border-arc flex flex-wrap items-center justify-between gap-3 text-xs text-arc-dim">
+          <div>Built on <a href="https://arc.io" target="_blank" rel="noreferrer" class="text-white hover:underline">Arc</a> — Circle's stablecoin-native L1.</div>
+          <div class="flex items-center gap-4">
+            <a href="https://faucet.circle.com" target="_blank" rel="noreferrer" class="hover:text-white">Get testnet USDC ↗</a>
+            <a href="https://testnet.arcscan.app/address/0x1C0cf5a6d6b1EA6EDdF878Aef3e35c2b930f4D31" target="_blank" rel="noreferrer" class="hover:text-white">View contract ↗</a>
+            <a href="https://github.com/QuocTuan0409/arc-simple-payment" target="_blank" rel="noreferrer" class="hover:text-white">GitHub ↗</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hidden — keeps existing event listeners (heroConnectBtn already attached) -->
+      <div class="hidden">
+        <button
+          id="_heroConnectBtnLegacy"
+          class="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-lg transition"
+        >
+          Connect Wallet to Start
+        </button>
           <p class="text-xs text-slate-500 mt-4">
             New to AgentPay? You'll be asked to register an agent (your wallet) with daily &
             per-tx spending limits the first time.
@@ -188,70 +314,71 @@
     <!-- ═══════════════════════════════════════════════════════════ -->
     <!-- Chat view                                                     -->
     <!-- ═══════════════════════════════════════════════════════════ -->
-    <main id="chatView" class="hidden flex-1 flex flex-col max-w-5xl w-full mx-auto px-4">
-      <!-- Status bar -->
-      <div class="bg-slate-900 border border-slate-800 rounded-xl p-3 my-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-xs">
-        <div>
-          <span class="text-slate-500 uppercase tracking-wider mr-1">Wallet</span>
-          <span class="mono" id="statusWallet">—</span>
+    <main id="chatView" class="hidden flex-1 flex flex-col max-w-3xl w-full mx-auto px-6">
+      <!-- Status bar — Arc-style compact rail -->
+      <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-xs my-4 pb-3 border-b border-arc">
+        <div class="flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          <span class="text-arc-dim uppercase tracking-wider text-[10px]">Wallet</span>
+          <span class="mono text-white" id="statusWallet">—</span>
         </div>
         <div>
-          <span class="text-slate-500 uppercase tracking-wider mr-1">Balance</span>
-          <span id="statusBalance">—</span>
+          <span class="text-arc-dim uppercase tracking-wider text-[10px] mr-1.5">Balance</span>
+          <span class="text-white" id="statusBalance">—</span>
         </div>
         <div>
-          <span class="text-slate-500 uppercase tracking-wider mr-1">Today spent</span>
-          <span id="statusSpent">—</span>
+          <span class="text-arc-dim uppercase tracking-wider text-[10px] mr-1.5">Spent today</span>
+          <span class="text-white" id="statusSpent">—</span>
         </div>
         <div>
-          <span class="text-slate-500 uppercase tracking-wider mr-1">Remaining</span>
+          <span class="text-arc-dim uppercase tracking-wider text-[10px] mr-1.5">Remaining</span>
           <span class="text-emerald-400" id="statusRemaining">—</span>
         </div>
       </div>
 
       <!-- Messages -->
-      <div id="messages" class="flex-1 overflow-y-auto py-4 space-y-4 min-h-0"></div>
+      <div id="messages" class="flex-1 overflow-y-auto py-4 space-y-5 min-h-0"></div>
 
-      <!-- Quick action chips -->
-      <div id="quickActions" class="flex gap-2 overflow-x-auto pb-2 px-1">
-        <button data-prompt="What can you do?" class="quick-chip whitespace-nowrap px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-full text-xs text-slate-300 transition">
-          💡 What can you do?
+      <!-- Quick action chips — Arc-style pills -->
+      <div id="quickActions" class="flex gap-2 overflow-x-auto pb-3 pt-1" style="scrollbar-width: none;">
+        <button data-prompt="What can you do?" class="quick-chip arc-chip whitespace-nowrap px-3.5 py-1.5 text-xs text-arc-muted hover:text-white">
+          What can you do?
         </button>
-        <button data-prompt="Register agent 5 daily 0.1 pertx name DemoBot" class="quick-chip whitespace-nowrap px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-full text-xs text-slate-300 transition">
-          🤖 Register agent
+        <button data-prompt="Register agent 5 daily 0.1 pertx name DemoBot" class="quick-chip arc-chip whitespace-nowrap px-3.5 py-1.5 text-xs text-arc-muted hover:text-white">
+          Register agent
         </button>
-        <button data-prompt="Show my budget" class="quick-chip whitespace-nowrap px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-full text-xs text-slate-300 transition">
-          💰 Show my budget
+        <button data-prompt="Show my budget" class="quick-chip arc-chip whitespace-nowrap px-3.5 py-1.5 text-xs text-arc-muted hover:text-white">
+          Show my budget
         </button>
-        <button data-prompt="Show activity" class="quick-chip whitespace-nowrap px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-full text-xs text-slate-300 transition">
-          📜 Show activity
+        <button data-prompt="Show activity" class="quick-chip arc-chip whitespace-nowrap px-3.5 py-1.5 text-xs text-arc-muted hover:text-white">
+          Show activity
         </button>
-        <button data-prompt="Show whitelist" class="quick-chip whitespace-nowrap px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-full text-xs text-slate-300 transition">
-          ✅ Show whitelist
+        <button data-prompt="Show whitelist" class="quick-chip arc-chip whitespace-nowrap px-3.5 py-1.5 text-xs text-arc-muted hover:text-white">
+          Show whitelist
         </button>
-        <button data-prompt="Send 0.01 USDC to 0x81bC647e375556Ee8Cae2a4422a33379904e3341" class="quick-chip whitespace-nowrap px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-full text-xs text-slate-300 transition">
-          💸 Send 0.01 USDC (demo)
+        <button data-prompt="Send 0.01 USDC to 0x81bC647e375556Ee8Cae2a4422a33379904e3341" class="quick-chip arc-chip whitespace-nowrap px-3.5 py-1.5 text-xs text-arc-muted hover:text-white">
+          Send 0.01 USDC (demo)
         </button>
-        <button data-prompt="Research best DeFi protocols on Arc" class="quick-chip whitespace-nowrap px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-full text-xs text-slate-300 transition">
-          🔍 Research DeFi on Arc
+        <button data-prompt="Research best DeFi protocols on Arc" class="quick-chip arc-chip whitespace-nowrap px-3.5 py-1.5 text-xs text-arc-muted hover:text-white">
+          Research DeFi on Arc
         </button>
-        <button data-prompt="Explain how AgentPay protects me" class="quick-chip whitespace-nowrap px-3 py-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-full text-xs text-slate-300 transition">
-          🛡️ Explain protections
+        <button data-prompt="Explain how AgentPay protects me" class="quick-chip arc-chip whitespace-nowrap px-3.5 py-1.5 text-xs text-arc-muted hover:text-white">
+          Explain protections
         </button>
       </div>
 
-      <!-- Input -->
-      <form id="chatForm" class="bg-slate-900 border border-slate-800 rounded-xl p-2 mb-4 flex gap-2 items-end">
+      <!-- Input — Arc-style search bar -->
+      <form id="chatForm" class="bg-arc-elev border border-arc rounded-2xl p-2 mb-6 flex gap-2 items-end focus-within:border-white/20 transition">
         <textarea
           id="input"
           rows="1"
-          placeholder='Try: "Send 0.01 USDC to 0x..." or "Show my budget"'
-          class="flex-1 bg-transparent text-sm text-slate-100 placeholder-slate-500 resize-none focus:outline-none px-2 py-2 max-h-32"
+          placeholder='Ask anything, or try "Send 0.01 USDC to 0x…"'
+          class="flex-1 bg-transparent text-[15px] text-white placeholder:text-arc-dim resize-none focus:outline-none px-3 py-2.5 max-h-32"
         ></textarea>
         <button
           type="submit"
           id="sendBtn"
-          class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+          class="px-4 py-2.5 bg-white text-[#0a0f1c] text-sm font-semibold rounded-xl hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Send
         </button>
@@ -261,16 +388,14 @@
     <!-- ═══════════════════════════════════════════════════════════ -->
     <!-- Footer                                                        -->
     <!-- ═══════════════════════════════════════════════════════════ -->
-    <footer class="border-t border-slate-900 mt-4 shrink-0">
-      <div class="bg-amber-950/30 border-y border-amber-900/40">
-        <div class="max-w-5xl mx-auto px-4 py-2 flex items-center justify-between gap-3 text-xs">
-          <span class="text-amber-200">
-            ⚠️ Testnet demo only — no real money. All transactions on Arc Testnet.
-          </span>
-          <a href="https://faucet.circle.com" target="_blank" rel="noreferrer" class="text-amber-300 hover:text-amber-100 underline shrink-0">
-            Get testnet USDC ↗
-          </a>
-        </div>
+    <footer class="border-t border-arc mt-0 shrink-0">
+      <div class="max-w-6xl mx-auto px-6 py-3 flex items-center justify-between gap-3 text-xs">
+        <span class="text-arc-dim">
+          Testnet demo on Arc — no real money. Transactions are real on-chain.
+        </span>
+        <a href="https://faucet.circle.com" target="_blank" rel="noreferrer" class="text-arc-muted hover:text-white shrink-0">
+          Get testnet USDC ↗
+        </a>
       </div>
     </footer>
 
@@ -471,22 +596,22 @@
         }
       }
 
-      // ─── Chat rendering ─────────────────────────────────────────────
+      // ─── Chat rendering — Arc-style bubbles ──────────────────────────
       function appendMessage(role, html) {
         const div = document.createElement("div");
         div.className = "fade-in";
         const isUser = role === "user";
         const align = isUser ? "items-end" : "items-start";
         const bubble = isUser
-          ? "bg-blue-600 text-white"
-          : "bg-slate-900 border border-slate-800 text-slate-200";
-        const icon = isUser ? "👤" : "🤖";
+          ? "bg-white text-[#0a0f1c]"
+          : "bg-arc-elev border border-arc text-white";
+        const avatar = isUser
+          ? `<div class="w-7 h-7 rounded-full bg-arc-elev border border-arc flex items-center justify-center text-[10px] font-medium text-arc-muted shrink-0">You</div>`
+          : `<div class="w-7 h-7 rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-[#0a0f1c] shrink-0">AP</div>`;
         div.innerHTML = `
-          <div class="flex ${align} gap-2 ${isUser ? "flex-row-reverse" : ""}">
-            <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-sm shrink-0">
-              ${icon}
-            </div>
-            <div class="${bubble} rounded-2xl px-4 py-2.5 max-w-[80%] text-sm leading-relaxed">
+          <div class="flex ${align} gap-3 ${isUser ? "flex-row-reverse" : ""}">
+            ${avatar}
+            <div class="${bubble} rounded-2xl px-4 py-3 max-w-[82%] text-sm leading-relaxed">
               ${html}
             </div>
           </div>
@@ -500,9 +625,9 @@
         div.id = "typingIndicator";
         div.className = "fade-in";
         div.innerHTML = `
-          <div class="flex items-start gap-2">
-            <div class="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-sm shrink-0">🤖</div>
-            <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3">
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 rounded-full bg-white flex items-center justify-center text-[10px] font-bold text-[#0a0f1c] shrink-0">AP</div>
+            <div class="bg-arc-elev border border-arc rounded-2xl px-4 py-3.5">
               <span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>
             </div>
           </div>
@@ -536,8 +661,9 @@
       function parseIntent(text) {
         const t = text.trim().toLowerCase();
 
-        // help
-        if (/^(help|what can you do|hi|hello|gm|hey)/i.test(t)) {
+        // help — STRICT: only match if input is purely a greeting/help word
+        // (otherwise "hello có phải AI?" would get swallowed instead of going to AI)
+        if (/^(help|what can you do[?!.]*|hi|hello|gm|hey|gn)[\s!?.]*$/i.test(t)) {
           return { intent: "help" };
         }
 
@@ -1047,6 +1173,10 @@
       }
 
       // ─── Show allowed services ─────────────────────────────────────
+      // Deploy block of AgentPay contract — chat scans from this block forward
+      // so old events aren't missed (dashboard uses same constant).
+      const DEPLOY_BLOCK_HINT = 42600000;
+
       async function handleShowServices() {
         try {
           const a = await contract.getAgent(userAddr);
@@ -1057,7 +1187,7 @@
           appendMessage("assistant", `Looking up your allowed services on-chain…`);
           const provider = contract.runner.provider;
           const latest = await provider.getBlockNumber();
-          const startBlock = Math.max(0, latest - 200000);
+          const startBlock = Math.max(DEPLOY_BLOCK_HINT, latest - 2000000);
           const allowedFilter = contract.filters.ServiceAllowed(userAddr);
           const revokedFilter = contract.filters.ServiceRevoked(userAddr);
           // Chunked scan to avoid RPC rate limits
@@ -1107,7 +1237,7 @@
           appendMessage("assistant", `Fetching your recent payments…`);
           const provider = contract.runner.provider;
           const latest = await provider.getBlockNumber();
-          const startBlock = Math.max(0, latest - 200000);
+          const startBlock = Math.max(DEPLOY_BLOCK_HINT, latest - 2000000);
           const filter = contract.filters.PaymentExecuted(userAddr);
           const chunk = 10000;
           const events = [];
